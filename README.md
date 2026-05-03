@@ -38,7 +38,9 @@ Copy the block below into ChatGPT, Claude, Cursor, Codex, or any chat AI. It wil
 ````text
 Install the ninova-mcp MCP server (PyPI: ninova-mcp, https://github.com/hikmedit/ninova-mcp).
 
-1. Run `pipx install ninova-mcp` (install pipx first if missing).
+1. Install from PyPI. Prefer `pipx install ninova-mcp`. If pipx is not
+   available, `pip install --user ninova-mcp` is fine — both put a
+   `ninova-mcp` command on my PATH.
 2. Add a `ninova` server to my MCP client's config — command `ninova-mcp`,
    env `NINOVA_USERNAME` and `NINOVA_PASSWORD`. Detect which client I use
    and write the config in the right place. Merge into existing
