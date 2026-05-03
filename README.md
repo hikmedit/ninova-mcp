@@ -39,12 +39,14 @@ Copy the block below into ChatGPT, Claude, Cursor, Codex, or any chat AI. It wil
 Install the ninova-mcp MCP server (PyPI: ninova-mcp, https://github.com/hikmedit/ninova-mcp).
 
 1. Run `pipx install ninova-mcp` (install pipx first if missing).
-2. Ask me for my ITU Ninova username and password.
-3. Add a `ninova` server to my MCP client's config — command `ninova-mcp`,
+2. Add a `ninova` server to my MCP client's config — command `ninova-mcp`,
    env `NINOVA_USERNAME` and `NINOVA_PASSWORD`. Detect which client I use
    and write the config in the right place. Merge into existing
-   `mcpServers`; do not overwrite other servers.
-4. Tell me to restart the client and call the `auth_status` tool to verify.
+   `mcpServers`; do not overwrite other servers. Do NOT ask me for
+   credentials — leave the values as placeholders, unless I already
+   pasted real credentials in this chat.
+3. Tell me to fill in NINOVA_USERNAME and NINOVA_PASSWORD if I haven't,
+   then restart the client and call the `auth_status` tool to verify.
 ````
 
 ## Manual install
