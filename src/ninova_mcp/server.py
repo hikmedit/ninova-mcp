@@ -41,7 +41,7 @@ from .parsing import (
 from .tracking import diff_course_snapshots, load_tracking_state, merge_updates, save_tracking_state, utc_now_iso
 
 SERVER_NAME = "ninova-mcp"
-SERVER_VERSION = "0.1.0"
+SERVER_VERSION = "0.1.1"
 DEFAULT_PROTOCOL_VERSION = "2025-11-05"
 
 
@@ -57,7 +57,7 @@ class NinovaMcpApp:
     def __init__(self) -> None:
         load_ninova_env()
         self._client: NinovaClient | None = None
-        state_root = os.getenv("NINOVA_STATE_DIR") or str(Path.cwd() / ".ninova_state")
+        state_root = os.getenv("NINOVA_STATE_DIR") or str(Path.home() / ".ninova_state")
         self.state_dir = Path(state_root)
         self.snapshot_dir = self.state_dir / "snapshots"
         self.tracking_state_path = self.state_dir / "tracking-state.json"
@@ -560,7 +560,7 @@ class NinovaMcpApp:
         filename: str | None = None,
     ) -> dict[str, Any]:
         response = self.client.get(url, stream=True)
-        target_dir = Path(output_dir or (Path.cwd() / "downloads")).expanduser().resolve()
+        target_dir = Path(output_dir or (self.state_dir / "downloads")).expanduser().resolve()
         target_dir.mkdir(parents=True, exist_ok=True)
 
         resolved_name = sanitize_filename(filename) if filename else self._filename_from_response(response)

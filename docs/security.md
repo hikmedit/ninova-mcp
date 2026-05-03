@@ -21,8 +21,7 @@ This project logs in to ITU Ninova with the username and password supplied by th
 
 Depending on the tools you call, the server may create:
 
-- `.ninova_state/` for snapshots and tracking state
-- `downloads/` for downloaded files
+- `~/.ninova_state/` for snapshots, tracking state, and downloads (override with `NINOVA_STATE_DIR`)
 - any explicit output directory you request through tools
 
 These paths are ignored by git by default.

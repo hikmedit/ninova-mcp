@@ -308,9 +308,9 @@ After `pipx install ninova-mcp`, the minimal local stdio entry is:
 
 - Sessions are created by normal login flow and held in process memory.
 - The server automatically retries once with a fresh login if a session expires.
-- Downloaded files are stored inside the requested output directory. The default is `./downloads`.
-- Snapshots are stored under `./.ninova_state/snapshots` unless `NINOVA_STATE_DIR` is set.
-- Course tracking state is stored under `./.ninova_state/tracking-state.json` unless `NINOVA_STATE_DIR` is set.
+- Downloaded files are stored inside the requested output directory. The default is `~/.ninova_state/downloads`.
+- Snapshots are stored under `~/.ninova_state/snapshots` unless `NINOVA_STATE_DIR` is set.
+- Course tracking state is stored under `~/.ninova_state/tracking-state.json` unless `NINOVA_STATE_DIR` is set.
 - The remote HTTP entrypoint is implemented with the official Python MCP SDK's Streamable HTTP server support.
 
 ## Tests
