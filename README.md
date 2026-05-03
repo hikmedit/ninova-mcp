@@ -33,34 +33,136 @@ It does not read Chrome cookies or reuse browser profiles.
 
 ## Quick Start
 
+You need Python 3.11+.
+
+### Step 1: Install the server
+
+Pick one:
+
 ```bash
-git clone https://github.com/hikmedit/ninova-mcp.git
-cd ninova-mcp
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e .
-cp .env.example .env
+pipx install ninova-mcp        # recommended
+uv tool install ninova-mcp     # if you use uv
+pip install --user ninova-mcp  # plain pip
 ```
 
-Edit `.env` with your own Ninova credentials:
+All three give you a `ninova-mcp` command on your PATH. Verify with `ninova-mcp` (it will wait silently — that's the stdio server running; press Ctrl+C).
 
-```dotenv
-NINOVA_USERNAME=your_itu_username
-NINOVA_PASSWORD=your_itu_password
+### Step 2: Tell your MCP client about it
+
+Open your client's MCP config file (paths below) and add the `ninova` entry. If `mcpServers` already exists, merge — do not replace it.
+
+**Claude Desktop**
+
+- macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+- Linux: `~/.config/Claude/claude_desktop_config.json`
+
+```json
+{
+  "mcpServers": {
+    "ninova": {
+      "command": "ninova-mcp",
+      "env": {
+        "NINOVA_USERNAME": "your_itu_username",
+        "NINOVA_PASSWORD": "your_itu_password"
+      }
+    }
+  }
+}
 ```
 
-Then add the server to your MCP client. See the full guide:
+**Claude Code** — one shell command, no manual editing:
 
-- [Installation guide](docs/installation.md)
-- [Security notes](docs/security.md)
-- [Example configs](examples/)
+```bash
+claude mcp add ninova ninova-mcp \
+  -e NINOVA_USERNAME=your_itu_username \
+  -e NINOVA_PASSWORD=your_itu_password
+```
 
-Supported priority clients:
+**Cursor**
 
-- Claude Desktop / Claude Code
-- OpenClaw
-- Cursor
-- Codex CLI
+- Per project: `.cursor/mcp.json` in the repo root
+- Global: `~/.cursor/mcp.json`
+
+Use the same JSON block as Claude Desktop above.
+
+**Codex CLI** — `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.ninova]
+command = "ninova-mcp"
+
+[mcp_servers.ninova.env]
+NINOVA_USERNAME = "your_itu_username"
+NINOVA_PASSWORD = "your_itu_password"
+```
+
+### Step 3: Restart the client and try it
+
+Restart your MCP client. Ask the model to call `auth_status`. It should report that credentials are present and a Ninova session works.
+
+---
+
+### Installing via your AI assistant (copy-paste prompt)
+
+If you'd rather have ChatGPT, Claude, Cursor, or any AI assistant set this up for you, paste the prompt below into the chat. It walks the model through detecting your OS, installing pipx + ninova-mcp, and writing the right config file.
+
+````text
+Install the Ninova MCP server on my machine. Project: https://github.com/hikmedit/ninova-mcp · PyPI: https://pypi.org/project/ninova-mcp/
+
+Do this:
+
+1. Ask me my OS (macOS / Windows / Linux) and which MCP client I use
+   (Claude Desktop, Claude Code, Cursor, Codex CLI). If I already told you, skip.
+
+2. Make sure Python 3.11+ is installed. If not, tell me how to install it and stop.
+
+3. Make sure pipx is installed. If not:
+   - macOS / Linux: `python3 -m pip install --user pipx && python3 -m pipx ensurepath`
+   - Windows: `python -m pip install --user pipx && python -m pipx ensurepath`
+
+4. Run: `pipx install ninova-mcp`
+
+5. Ask me for my ITU Ninova username and password. Use them only to write
+   the MCP config below — do not echo, log, or paste them back to me.
+
+6. Write or update the right config file for my client. If `mcpServers`
+   (or `[mcp_servers]`) already exists in the file, MERGE the `ninova`
+   entry into it; do not replace existing servers.
+
+   Config locations:
+   - Claude Desktop macOS:   ~/Library/Application Support/Claude/claude_desktop_config.json
+   - Claude Desktop Windows: %APPDATA%\Claude\claude_desktop_config.json
+   - Claude Desktop Linux:   ~/.config/Claude/claude_desktop_config.json
+   - Claude Code: run `claude mcp add ninova ninova-mcp -e NINOVA_USERNAME=<user> -e NINOVA_PASSWORD=<pass>`
+   - Cursor (project): .cursor/mcp.json
+   - Cursor (global):  ~/.cursor/mcp.json
+   - Codex CLI:        ~/.codex/config.toml
+
+   JSON block to add (TOML form for Codex):
+   {
+     "mcpServers": {
+       "ninova": {
+         "command": "ninova-mcp",
+         "env": {
+           "NINOVA_USERNAME": "<my_username>",
+           "NINOVA_PASSWORD": "<my_password>"
+         }
+       }
+     }
+   }
+
+7. Tell me to restart the client.
+
+8. After restart, tell me how to verify by calling the `auth_status` tool.
+
+If you cannot edit files directly, just print the exact commands and the
+exact JSON I should paste, with the right config path for my OS + client.
+````
+
+Supported priority clients: Claude Desktop / Claude Code, Cursor, Codex CLI, OpenClaw.
+
+See also: [Installation guide](docs/installation.md) · [Security notes](docs/security.md) · [Example configs](examples/)
 
 ## Security Notice
 
@@ -124,16 +226,18 @@ export NINOVA_ALLOWED_ORIGINS="https://claude.ai,https://claude.com"
 
 ## Run
 
-From the repository root:
-
-```bash
-PYTHONPATH=src python3 -m ninova_mcp
-```
-
-Or, after installing the package:
+After installing the package:
 
 ```bash
 ninova-mcp
+```
+
+This starts the stdio MCP server. It is normal for it to wait silently because your MCP client talks to it over stdin/stdout.
+
+To run from a source checkout without installing:
+
+```bash
+PYTHONPATH=src python3 -m ninova_mcp
 ```
 
 ## Run Remote HTTP Server
@@ -205,17 +309,14 @@ Anthropic references:
 
 ## Example MCP Config
 
-Example local stdio entry:
+After `pipx install ninova-mcp`, the minimal local stdio entry is:
 
 ```json
 {
   "mcpServers": {
     "ninova": {
-      "command": "python3",
-      "args": ["-m", "ninova_mcp"],
-      "cwd": "/Users/hikmedit/ninova-mcp",
+      "command": "ninova-mcp",
       "env": {
-        "PYTHONPATH": "/Users/hikmedit/ninova-mcp/src",
         "NINOVA_USERNAME": "your_username",
         "NINOVA_PASSWORD": "your_password"
       }

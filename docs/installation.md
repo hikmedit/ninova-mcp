@@ -2,9 +2,45 @@
 
 Ninova MCP is a local MCP server that lets AI assistants read your own ITU Ninova account through the normal username/password login flow.
 
-## 1. Install
+## 1. Requirements
 
-### Option A: from GitHub
+- Python 3.11 or newer (`python3 --version` on macOS/Linux, `python --version` on Windows)
+- An MCP-compatible client (Claude Desktop, Claude Code, Cursor, Codex CLI, OpenClaw, etc.)
+
+## 2. Install
+
+### Option A: pipx (recommended)
+
+[pipx](https://pipx.pypa.io) installs Python CLI tools in isolated environments and exposes their commands on your PATH globally.
+
+```bash
+pipx install ninova-mcp
+```
+
+If you do not have pipx yet:
+
+```bash
+python3 -m pip install --user pipx
+python3 -m pipx ensurepath
+```
+
+On Windows, replace `python3` with `python` or `py -3`.
+
+### Option B: uv
+
+[uv](https://docs.astral.sh/uv/) is a fast Python package manager.
+
+```bash
+uv tool install ninova-mcp
+```
+
+### Option C: pip
+
+```bash
+pip install ninova-mcp
+```
+
+### Option D: from source
 
 ```bash
 git clone https://github.com/hikmedit/ninova-mcp.git
@@ -14,72 +50,37 @@ source .venv/bin/activate
 pip install -e .
 ```
 
-### Option B: with uv
+After any option, `ninova-mcp` should be available on your PATH:
 
 ```bash
-git clone https://github.com/hikmedit/ninova-mcp.git
-cd ninova-mcp
-uv venv
-source .venv/bin/activate
-uv pip install -e .
+ninova-mcp --help    # not implemented; the command starts the stdio server
+which ninova-mcp     # macOS / Linux
+where ninova-mcp     # Windows
 ```
-
-## 2. Configure credentials
-
-Create a `.env` file in the repo root:
-
-```bash
-cp .env.example .env
-```
-
-Then edit `.env`:
-
-```dotenv
-NINOVA_USERNAME=your_itu_username
-NINOVA_PASSWORD=your_itu_password
-```
-
-The real `.env` file is ignored by git. Do not share your credentials.
 
 ## 3. Smoke test
+
+Run the server directly:
 
 ```bash
 ninova-mcp
 ```
 
-The command starts a stdio MCP server. It is normal for it to wait silently because your AI client talks to it over stdin/stdout.
+It is normal for it to wait silently because your AI client talks to it over stdin/stdout. Press Ctrl+C to exit.
 
-For a quick client-side check, add it to one of the MCP clients below and call the `auth_status` tool.
+## 4. Configure your MCP client
 
-## Claude Desktop / Claude Code
+The credentials live in the client's MCP config so the server is launched with them as environment variables. You do not need a `.env` file unless you prefer one.
 
-Add this to your Claude MCP config, replacing the path with your local clone path:
+### Claude Desktop / Claude Code
 
-```json
-{
-  "mcpServers": {
-    "ninova": {
-      "command": "python3",
-      "args": ["-m", "ninova_mcp"],
-      "cwd": "/absolute/path/to/ninova-mcp",
-      "env": {
-        "PYTHONPATH": "/absolute/path/to/ninova-mcp/src",
-        "NINOVA_USERNAME": "your_itu_username",
-        "NINOVA_PASSWORD": "your_itu_password"
-      }
-    }
-  }
-}
-```
-
-If you installed with `pip install -e .`, you can also use:
+Add this to your Claude MCP config:
 
 ```json
 {
   "mcpServers": {
     "ninova": {
       "command": "ninova-mcp",
-      "cwd": "/absolute/path/to/ninova-mcp",
       "env": {
         "NINOVA_USERNAME": "your_itu_username",
         "NINOVA_PASSWORD": "your_itu_password"
@@ -89,7 +90,7 @@ If you installed with `pip install -e .`, you can also use:
 }
 ```
 
-## Cursor
+### Cursor
 
 Create or edit `.cursor/mcp.json` in your project:
 
@@ -97,11 +98,8 @@ Create or edit `.cursor/mcp.json` in your project:
 {
   "mcpServers": {
     "ninova": {
-      "command": "python3",
-      "args": ["-m", "ninova_mcp"],
-      "cwd": "/absolute/path/to/ninova-mcp",
+      "command": "ninova-mcp",
       "env": {
-        "PYTHONPATH": "/absolute/path/to/ninova-mcp/src",
         "NINOVA_USERNAME": "your_itu_username",
         "NINOVA_PASSWORD": "your_itu_password"
       }
@@ -112,33 +110,27 @@ Create or edit `.cursor/mcp.json` in your project:
 
 Restart Cursor, then ask it to use the Ninova tools.
 
-## Codex CLI
+### Codex CLI
 
 Add this to your Codex config, usually `~/.codex/config.toml`:
 
 ```toml
 [mcp_servers.ninova]
-command = "python3"
-args = ["-m", "ninova_mcp"]
-cwd = "/absolute/path/to/ninova-mcp"
+command = "ninova-mcp"
 
 [mcp_servers.ninova.env]
-PYTHONPATH = "/absolute/path/to/ninova-mcp/src"
 NINOVA_USERNAME = "your_itu_username"
 NINOVA_PASSWORD = "your_itu_password"
 ```
 
-## OpenClaw
+### OpenClaw
 
 OpenClaw can store MCP servers in its MCP registry:
 
 ```bash
 openclaw mcp set ninova --json '{
-  "command": "python3",
-  "args": ["-m", "ninova_mcp"],
-  "cwd": "/absolute/path/to/ninova-mcp",
+  "command": "ninova-mcp",
   "env": {
-    "PYTHONPATH": "/absolute/path/to/ninova-mcp/src",
     "NINOVA_USERNAME": "your_itu_username",
     "NINOVA_PASSWORD": "your_itu_password"
   }
@@ -151,26 +143,15 @@ Then verify:
 openclaw mcp show ninova
 ```
 
-If your OpenClaw setup uses a JSON/JSON5 config directly, the equivalent shape is:
+## 5. Verify the connection
 
-```json5
-{
-  mcp: {
-    servers: {
-      ninova: {
-        command: "python3",
-        args: ["-m", "ninova_mcp"],
-        cwd: "/absolute/path/to/ninova-mcp",
-        env: {
-          PYTHONPATH: "/absolute/path/to/ninova-mcp/src",
-          NINOVA_USERNAME: "your_itu_username",
-          NINOVA_PASSWORD: "your_itu_password",
-        },
-      },
-    },
-  },
-}
-```
+In your MCP client, ask the model to call the `auth_status` tool. It should report that credentials are present and a Ninova session can be created.
+
+## Troubleshooting
+
+- **`ninova-mcp: command not found`**: Run `pipx ensurepath` (or restart the shell). If you used a venv, point the MCP config to its absolute script path: `/path/to/.venv/bin/ninova-mcp` (or `\.venv\Scripts\ninova-mcp.exe` on Windows).
+- **Login fails**: Confirm your credentials are correct and that you can sign in to https://ninova.itu.edu.tr in a browser. If Ninova changes its login form, install the optional Playwright fallback: `pipx install "ninova-mcp[playwright]"` and run `playwright install chromium`.
+- **Want a `.env` file instead of putting credentials in the MCP config**: Create a `.env` in your client's working directory with `NINOVA_USERNAME=...` and `NINOVA_PASSWORD=...`. The server auto-loads it.
 
 ## Remote Claude.ai custom connector
 

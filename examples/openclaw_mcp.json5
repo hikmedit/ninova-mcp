@@ -2,11 +2,8 @@
   mcp: {
     servers: {
       ninova: {
-        command: "python3",
-        args: ["-m", "ninova_mcp"],
-        cwd: "/absolute/path/to/ninova-mcp",
+        command: "ninova-mcp",
         env: {
-          PYTHONPATH: "/absolute/path/to/ninova-mcp/src",
           NINOVA_USERNAME: "your_itu_username",
           NINOVA_PASSWORD: "your_itu_password",
         },
