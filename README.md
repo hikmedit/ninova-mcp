@@ -89,29 +89,31 @@ For interactive actions Ninova uses same-page form `POST` requests with `__VIEWS
 
 ## Configuration
 
-Set credentials in the environment before starting the server:
-
-```bash
-export NINOVA_USERNAME="your_username"
-export NINOVA_PASSWORD="your_password"
-```
-
-If a `.env` file exists in the current working directory or one of its parents, the server will load `NINOVA_*` variables from there automatically without overriding variables that are already set in the process environment:
+Only two variables are required:
 
 ```dotenv
 NINOVA_USERNAME=your_username
 NINOVA_PASSWORD=your_password
 ```
 
-Optional environment variables:
+The server reads them from the process environment. If a `.env` file exists in the current working directory (or any parent), `NINOVA_*` variables are loaded from it without overriding variables already set in the environment.
+
+### Advanced (optional)
+
+These are not needed for normal local use. Set them only if you need to override defaults or run the remote HTTP transport.
+
+Local overrides:
 
 ```bash
-export NINOVA_BASE_URL="https://ninova.itu.edu.tr"
+export NINOVA_BASE_URL="https://ninova.itu.edu.tr"   # default
 export NINOVA_STATE_DIR="/absolute/path/to/.ninova_state"
 export NINOVA_DISABLE_PLAYWRIGHT_FALLBACK="1"
 export NINOVA_ENV_FILE="/absolute/path/to/.env"
+```
 
-# Remote HTTP server settings for Claude Cowork / Claude.ai connectors
+Remote HTTP server (only for self-hosted Claude.ai custom connectors):
+
+```bash
 export NINOVA_REMOTE_HOST="0.0.0.0"
 export NINOVA_REMOTE_PORT="8000"
 export NINOVA_REMOTE_MCP_PATH="/mcp-choose-a-long-random-secret"
