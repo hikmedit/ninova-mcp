@@ -9,6 +9,16 @@ Ninova MCP is a local MCP server that lets AI assistants read your own ITU Ninov
 
 ## 2. Install
 
+### Option A0: one-click Claude Desktop extension (.mcpb) — easiest, no terminal
+
+Best for non-technical users. Download the bundle for your platform from the
+[latest release](https://github.com/hikmedit/ninova-mcp/releases/latest),
+double-click it, and Claude Desktop walks you through a form for your İTÜ
+username and password (the password goes into your OS keychain). This still
+needs Python 3.11+ installed on the machine (the bundle carries every Python
+dependency, but not the Python interpreter itself). No `pip`, `pipx`, or JSON
+editing. Skip the rest of this section if you use this option.
+
 ### Option A: pipx (recommended)
 
 [pipx](https://pipx.pypa.io) installs Python CLI tools in isolated environments and exposes their commands on your PATH globally.
@@ -152,6 +162,28 @@ In your MCP client, ask the model to call the `auth_status` tool. It should repo
 - **`ninova-mcp: command not found`**: Run `pipx ensurepath` (or restart the shell). If you used a venv, point the MCP config to its absolute script path: `/path/to/.venv/bin/ninova-mcp` (or `\.venv\Scripts\ninova-mcp.exe` on Windows).
 - **Login fails**: Confirm your credentials are correct and that you can sign in to https://ninova.itu.edu.tr in a browser. If Ninova changes its login form, install the optional Playwright fallback: `pipx install "ninova-mcp[playwright]"` and run `playwright install chromium`.
 - **Want a `.env` file instead of putting credentials in the MCP config**: Create a `.env` in your client's working directory with `NINOVA_USERNAME=...` and `NINOVA_PASSWORD=...`. The server auto-loads it.
+
+## Building the .mcpb bundle (maintainers)
+
+The one-click bundle is produced from source. Because compiled dependencies
+(`lxml`, `pydantic-core`) are platform-specific, each `.mcpb` targets one
+OS/architecture.
+
+```bash
+python scripts/build_mcpb.py
+# -> dist/ninova-mcp-<version>-<platform>.mcpb
+```
+
+Requirements: Python 3.11+ and Node.js (the script packs with the official
+`mcpb` CLI via `npx`, and falls back to a plain zip if Node is unavailable).
+
+To produce bundles for every platform at once, push a version tag — the
+`.github/workflows/build-mcpb.yml` workflow builds macOS (Apple Silicon +
+Intel), Windows, and Linux bundles and attaches them to the GitHub Release:
+
+```bash
+git tag v0.1.3 && git push origin v0.1.3
+```
 
 ## Remote Claude.ai custom connector
 

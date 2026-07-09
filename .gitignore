@@ -17,3 +17,5 @@ downloads-live-check/
 submissions/
 tmp_*.json
 *.zip
+*.mcpb
+.claude/worktrees/

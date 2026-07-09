@@ -8,10 +8,9 @@ from typing import Any
 from urllib.parse import urlparse
 
 import requests
-from bs4 import BeautifulSoup
 
 from .env import load_ninova_env
-from .parsing import clean_text, normalize_lookup_text, normalize_url
+from .parsing import clean_text, make_soup, normalize_lookup_text, normalize_url
 
 DEFAULT_TIMEOUT = 30
 DEFAULT_HEADERS = {
@@ -87,7 +86,7 @@ class NinovaClient:
         )
 
     def _extract_login_error(self, html: str) -> str | None:
-        soup = BeautifulSoup(html, "lxml")
+        soup = make_soup(html)
         selectors = [
             ".validation-summary-errors",
             ".error",
@@ -114,7 +113,7 @@ class NinovaClient:
         return None
 
     def _build_login_payload(self, login_html: str) -> dict[str, str]:
-        soup = BeautifulSoup(login_html, "lxml")
+        soup = make_soup(login_html)
         payload: dict[str, str] = {}
         for input_tag in soup.select("input[name]"):
             input_name = input_tag.get("name")

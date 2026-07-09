@@ -13,6 +13,21 @@ from urllib.parse import unquote, urljoin, urlparse
 
 from bs4 import BeautifulSoup, Tag
 
+
+def make_soup(html: str) -> BeautifulSoup:
+    """Parse HTML with lxml, falling back to the stdlib parser.
+
+    lxml is the declared default (and what the tests run against), but it is a
+    compiled extension. In a packaged distribution where the vendored lxml does
+    not match the running Python's ABI it would raise ``FeatureNotFound``; the
+    fallback keeps the server working with ``html.parser`` instead of crashing.
+    """
+    try:
+        return BeautifulSoup(html, "lxml")
+    except Exception:
+        return BeautifulSoup(html, "html.parser")
+
+
 COURSE_PATH_RE = re.compile(r"^/Sinif/\d+\.\d+/?$")
 COURSE_CODE_RE = re.compile(r"\b[A-Z]{2,}\s*\d{3}[A-Z]?\b")
 FILE_EXTENSIONS = {
@@ -248,7 +263,7 @@ def _extract_tables(soup: BeautifulSoup) -> list[dict[str, Any]]:
 
 
 def parse_html_page(url: str, html: str, base_url: str) -> dict[str, Any]:
-    soup = BeautifulSoup(html, "lxml")
+    soup = make_soup(html)
     for tag in soup(["script", "style", "noscript"]):
         tag.decompose()
 
@@ -297,7 +312,7 @@ def _extract_course_title(anchor: Tag) -> str:
 
 
 def extract_courses(html: str, page_url: str, base_url: str) -> list[dict[str, Any]]:
-    soup = BeautifulSoup(html, "lxml")
+    soup = make_soup(html)
     courses: list[dict[str, Any]] = []
     seen: set[str] = set()
     for anchor in soup.find_all("a", href=True):
@@ -321,7 +336,7 @@ def extract_courses(html: str, page_url: str, base_url: str) -> list[dict[str, A
 
 
 def extract_named_table(html: str, heading_text: str) -> list[dict[str, Any] | list[str]]:
-    soup = BeautifulSoup(html, "lxml")
+    soup = make_soup(html)
     matcher = normalize_lookup_text(heading_text)
     target: Tag | None = None
     for tag in soup.find_all(True):
@@ -415,7 +430,7 @@ def _extract_assignment_counts(cell: Tag) -> tuple[int | None, int | None]:
 
 
 def extract_announcements_list(html: str, page_url: str, base_url: str) -> list[dict[str, Any]]:
-    soup = BeautifulSoup(html, "lxml")
+    soup = make_soup(html)
     items: list[dict[str, Any]] = []
     for card in soup.select("div.duyuruGoruntule"):
         title_anchor = card.select_one("h2 a[href]")
@@ -497,7 +512,7 @@ def extract_announcement_detail(html: str, page_url: str, base_url: str) -> dict
 
 
 def extract_assignments_list(html: str, page_url: str, base_url: str) -> list[dict[str, Any]]:
-    soup = BeautifulSoup(html, "lxml")
+    soup = make_soup(html)
     table = soup.find("table", id=re.compile("gvOdevListesi")) or soup.find("table", class_="data")
     if table is None:
         return []
@@ -547,7 +562,7 @@ def extract_assignments_list(html: str, page_url: str, base_url: str) -> list[di
 
 
 def extract_assignment_detail(html: str, page_url: str, base_url: str) -> dict[str, Any]:
-    soup = BeautifulSoup(html, "lxml")
+    soup = make_soup(html)
     page = parse_html_page(page_url, html, base_url=base_url)
     text = page["text"]
     title = page["headings"][0]["text"] if page["headings"] else page["title"]
@@ -604,7 +619,7 @@ def extract_assignment_detail(html: str, page_url: str, base_url: str) -> dict[s
 
 
 def extract_assignment_upload_status(html: str, page_url: str, base_url: str) -> dict[str, Any]:
-    soup = BeautifulSoup(html, "lxml")
+    soup = make_soup(html)
     table = _find_table_by_headers(soup, ["Açıklama", "Uzantılar"])
     if table is None:
         return {}
@@ -667,7 +682,7 @@ def extract_file_directory(
     base_url: str,
     current_path: str = "/",
 ) -> dict[str, Any]:
-    soup = BeautifulSoup(html, "lxml")
+    soup = make_soup(html)
     table = _find_table_by_headers(soup, ["Dosyalar", "Boyut", "Tarih"])
     entries: list[dict[str, Any]] = []
     if table is not None:
@@ -793,7 +808,7 @@ def extract_course_info(html: str, page_url: str, base_url: str) -> dict[str, An
 
 
 def extract_course_sections(html: str, page_url: str, base_url: str) -> list[dict[str, Any]]:
-    soup = BeautifulSoup(html, "lxml")
+    soup = make_soup(html)
     course_path_match = re.search(r"(/Sinif/\d+\.\d+)", urlparse(page_url).path)
     if not course_path_match:
         return []
@@ -824,7 +839,7 @@ def extract_course_sections(html: str, page_url: str, base_url: str) -> list[dic
 
 
 def extract_gradebook(html: str, page_url: str, base_url: str) -> dict[str, Any]:
-    soup = BeautifulSoup(html, "lxml")
+    soup = make_soup(html)
     page = parse_html_page(page_url, html, base_url=base_url)
 
     target_table: Tag | None = None
@@ -872,7 +887,7 @@ def extract_gradebook(html: str, page_url: str, base_url: str) -> dict[str, Any]
 
 
 def extract_message_board(html: str, page_url: str, base_url: str) -> dict[str, Any]:
-    soup = BeautifulSoup(html, "lxml")
+    soup = make_soup(html)
     table = _find_table_by_headers(soup, ["Mesaj Başlığı", "Son Mesaj"])
     topics: list[dict[str, Any]] = []
     if table is not None:
@@ -905,7 +920,7 @@ def extract_message_board(html: str, page_url: str, base_url: str) -> dict[str, 
 
 
 def extract_message_thread_detail(html: str, page_url: str, base_url: str) -> dict[str, Any]:
-    soup = BeautifulSoup(html, "lxml")
+    soup = make_soup(html)
     page = parse_html_page(page_url, html, base_url=base_url)
     table = _find_table_by_headers(soup, ["Gönderen", "Mesaj"])
     posts: list[dict[str, Any]] = []
@@ -937,7 +952,7 @@ def extract_message_thread_detail(html: str, page_url: str, base_url: str) -> di
 
 
 def extract_attendance(html: str, page_url: str, base_url: str) -> dict[str, Any]:
-    soup = BeautifulSoup(html, "lxml")
+    soup = make_soup(html)
     page = parse_html_page(page_url, html, base_url=base_url)
 
     student_name = None
@@ -1034,7 +1049,7 @@ def _extract_remote_session_rows(table: Tag, page_url: str) -> list[dict[str, An
 
 
 def extract_remote_learning(html: str, page_url: str, base_url: str) -> dict[str, Any]:
-    soup = BeautifulSoup(html, "lxml")
+    soup = make_soup(html)
     page = parse_html_page(page_url, html, base_url=base_url)
     active_table = _table_after_heading(soup, "Aktif Uzaktan Eğitim Oturumlarınız")
     past_table = _table_after_heading(soup, "Sınıfın Geçmiş Uzaktan Eğitim Oturumları")

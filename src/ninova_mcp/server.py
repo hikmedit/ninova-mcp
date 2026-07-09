@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import os
 import re
-import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Callable
@@ -41,16 +40,12 @@ from .parsing import (
 from .tracking import diff_course_snapshots, load_tracking_state, merge_updates, save_tracking_state, utc_now_iso
 
 SERVER_NAME = "ninova-mcp"
-SERVER_VERSION = "0.1.1"
-DEFAULT_PROTOCOL_VERSION = "2025-11-05"
+SERVER_VERSION = "0.1.3"
 
-
-class JsonRpcError(Exception):
-    def __init__(self, code: int, message: str, data: Any | None = None) -> None:
-        super().__init__(message)
-        self.code = code
-        self.message = message
-        self.data = data
+SERVER_INSTRUCTIONS = (
+    "Set NINOVA_USERNAME and NINOVA_PASSWORD before using Ninova tools. "
+    "This server logs in through the normal Ninova flow and keeps its own in-memory session."
+)
 
 
 class NinovaMcpApp:
@@ -1475,255 +1470,65 @@ TOOLS: list[dict[str, Any]] = [
 ]
 
 
-class StdioMcpServer:
-    def __init__(self, app: NinovaMcpApp) -> None:
-        self.app = app
-        self.protocol_version = DEFAULT_PROTOCOL_VERSION
-        self.handlers: dict[str, Callable[[dict[str, Any]], Any]] = {
-            "auth_status": lambda _: self.app.auth_status(),
-            "refresh_session": lambda _: self.app.refresh_session(),
-            "get_dashboard": lambda _: self.app.get_dashboard(),
-            "list_courses": lambda _: self.app.list_courses(),
-            "get_courses": lambda _: self.app.get_courses(),
-            "get_course_announcements": lambda args: self.app.get_course_announcements(
-                course=self._require_string(args, "course"),
-                include_full_text=bool(args.get("include_full_text", False)),
-                limit=int(args.get("limit", 50)),
-            ),
-            "get_course_class_files": lambda args: self.app.get_course_class_files(
-                course=self._require_string(args, "course"),
-                recursive=bool(args.get("recursive", True)),
-                max_depth=int(args.get("max_depth", 3)),
-            ),
-            "get_course_lesson_files": lambda args: self.app.get_course_lesson_files(
-                course=self._require_string(args, "course"),
-                recursive=bool(args.get("recursive", True)),
-                max_depth=int(args.get("max_depth", 3)),
-            ),
-            "get_course_assignments": lambda args: self.app.get_course_assignments(
-                course=self._require_string(args, "course"),
-                limit=int(args.get("limit", 100)),
-            ),
-            "get_course_info": lambda args: self.app.get_course_info(
-                course=self._require_string(args, "course"),
-            ),
-            "get_course_sections": lambda args: self.app.get_course_sections(
-                course=self._require_string(args, "course"),
-            ),
-            "get_course_grades": lambda args: self.app.get_course_grades(
-                course=self._require_string(args, "course"),
-            ),
-            "get_course_message_board": lambda args: self.app.get_course_message_board(
-                course=self._require_string(args, "course"),
-                include_thread_details=bool(args.get("include_thread_details", False)),
-                limit=int(args.get("limit", 50)),
-            ),
-            "get_course_attendance": lambda args: self.app.get_course_attendance(
-                course=self._require_string(args, "course"),
-            ),
-            "get_course_remote_learning": lambda args: self.app.get_course_remote_learning(
-                course=self._require_string(args, "course"),
-            ),
-            "get_course_overview": lambda args: self.app.get_course_overview(
-                course=self._require_string(args, "course"),
-                refresh=bool(args.get("refresh", False)),
-                file_max_depth=int(args.get("file_max_depth", 3)),
-            ),
-            "get_dashboard_announcements": lambda args: self.app.get_dashboard_announcements(
-                include_full_text=bool(args.get("include_full_text", False)),
-                limit=int(args.get("limit", 20)),
-            ),
-            "get_dashboard_assignments": lambda args: self.app.get_dashboard_assignments(
-                limit=int(args.get("limit", 20)),
-            ),
-            "sync_all_courses": lambda args: self.app.sync_all_courses(
-                include_files=bool(args.get("include_files", True)),
-                file_max_depth=int(args.get("file_max_depth", 3)),
-                course_limit=int(args["course_limit"]) if "course_limit" in args and args["course_limit"] is not None else None,
-            ),
-            "get_updates": lambda args: self.app.get_updates(
-                limit=int(args.get("limit", 100)),
-                course=args.get("course"),
-                entity_type=args.get("entity_type"),
-            ),
-            "get_upcoming_deadlines": lambda args: self.app.get_upcoming_deadlines(
-                days=int(args.get("days", 14)),
-                refresh=bool(args.get("refresh", False)),
-            ),
-            "read_page": lambda args: self.app.read_page(
-                url=self._require_string(args, "url"),
-                include_text=bool(args.get("include_text", True)),
-                link_limit=int(args.get("link_limit", 200)),
-            ),
-            "crawl_course": lambda args: self.app.crawl_course(
-                course_url=self._require_string(args, "course_url"),
-                max_depth=int(args.get("max_depth", 2)),
-                max_pages=int(args.get("max_pages", 25)),
-                include_downloads=bool(args.get("include_downloads", True)),
-            ),
-            "download_resource": lambda args: self.app.download_resource(
-                url=self._require_string(args, "url"),
-                output_dir=args.get("output_dir"),
-                filename=args.get("filename"),
-            ),
-            "snapshot_page": lambda args: self.app.snapshot_page(
-                url=self._require_string(args, "url"),
-                label=args.get("label"),
-            ),
-            "diff_snapshot": lambda args: self.app.diff_snapshot(
-                url=self._require_string(args, "url"),
-                snapshot_path=args.get("snapshot_path"),
-                label=args.get("label"),
-            ),
-        }
+LOCAL_TOOL_NAMES: list[str] = [tool["name"] for tool in TOOLS]
+REMOTE_EXCLUDED_TOOLS = {"download_resource", "snapshot_page", "diff_snapshot"}
+REMOTE_TOOL_NAMES: list[str] = [
+    name for name in LOCAL_TOOL_NAMES if name not in REMOTE_EXCLUDED_TOOLS
+]
 
-    def run(self) -> None:
-        while True:
-            message = self._read_message()
-            if message is None:
-                return
 
-            if "id" not in message:
-                self._handle_notification(message)
-                continue
+def register_tools(mcp: Any, app: NinovaMcpApp, tool_names: list[str]) -> None:
+    """Register Ninova tools on a FastMCP instance from the shared metadata.
 
-            try:
-                result = self._handle_request(message)
-                self._write_message(
-                    {
-                        "jsonrpc": "2.0",
-                        "id": message["id"],
-                        "result": result,
-                    }
-                )
-            except JsonRpcError as exc:
-                self._write_message(
-                    {
-                        "jsonrpc": "2.0",
-                        "id": message.get("id"),
-                        "error": {
-                            "code": exc.code,
-                            "message": exc.message,
-                            "data": exc.data,
-                        },
-                    }
-                )
-            except Exception as exc:  # pragma: no cover - safety net
-                self._write_message(
-                    {
-                        "jsonrpc": "2.0",
-                        "id": message.get("id"),
-                        "error": {
-                            "code": -32000,
-                            "message": str(exc),
-                        },
-                    }
-                )
+    Both the local stdio server and the remote HTTP server go through this so
+    the two transports always expose the same tool contract.
+    """
+    metadata = {tool["name"]: tool for tool in TOOLS}
+    for name in tool_names:
+        fn = getattr(app, name)
+        meta = metadata.get(name, {})
+        mcp.add_tool(
+            fn,
+            name=name,
+            title=meta.get("title"),
+            description=meta.get("description"),
+            structured_output=True,
+        )
 
-    def _handle_request(self, message: dict[str, Any]) -> dict[str, Any]:
-        method = message.get("method")
-        params = message.get("params") or {}
 
-        if method == "initialize":
-            self.protocol_version = params.get("protocolVersion") or DEFAULT_PROTOCOL_VERSION
-            return {
-                "protocolVersion": self.protocol_version,
-                "capabilities": {
-                    "tools": {
-                        "listChanged": False,
-                    }
-                },
-                "serverInfo": {
-                    "name": SERVER_NAME,
-                    "version": SERVER_VERSION,
-                },
-                "instructions": (
-                    "Set NINOVA_USERNAME and NINOVA_PASSWORD before using Ninova tools. "
-                    "This server logs in through the normal Ninova flow and keeps its own in-memory session."
-                ),
-            }
+def apply_server_version(mcp: Any, version: str = SERVER_VERSION) -> None:
+    """Report our package version in the MCP ``serverInfo`` handshake.
 
-        if method == "ping":
-            return {}
+    FastMCP does not forward a version, so the low-level server otherwise
+    falls back to the SDK's own version. This tolerates SDK internals
+    changing and simply leaves the default in place if it cannot.
+    """
+    server = getattr(mcp, "_mcp_server", None)
+    if server is not None:
+        try:
+            server.version = version
+        except Exception:  # pragma: no cover - defensive against SDK changes
+            pass
 
-        if method == "tools/list":
-            return {"tools": TOOLS}
 
-        if method == "tools/call":
-            name = params.get("name")
-            arguments = params.get("arguments") or {}
-            if not isinstance(arguments, dict):
-                raise JsonRpcError(-32602, "tools/call arguments must be an object.")
-            if name not in self.handlers:
-                raise JsonRpcError(-32601, f"Unknown tool: {name}")
-            try:
-                payload = self.handlers[name](arguments)
-                return {
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": pretty_json(payload),
-                        }
-                    ],
-                    "isError": False,
-                }
-            except (NinovaError, ValueError) as exc:
-                return {
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": pretty_json({"error": str(exc)}),
-                        }
-                    ],
-                    "isError": True,
-                }
+def build_stdio_server(app: NinovaMcpApp | None = None) -> Any:
+    """Build the FastMCP server for the local stdio transport.
 
-        raise JsonRpcError(-32601, f"Method not found: {method}")
+    Uses the official MCP SDK so message framing is spec-compliant
+    (newline-delimited JSON), which is what Claude Desktop, Claude Code,
+    Cursor, and Codex actually speak.
+    """
+    from mcp.server.fastmcp import FastMCP
 
-    def _handle_notification(self, message: dict[str, Any]) -> None:
-        method = message.get("method")
-        if method in {"notifications/initialized", "initialized"}:
-            return
-
-    def _read_message(self) -> dict[str, Any] | None:
-        headers: dict[str, str] = {}
-        while True:
-            line = sys.stdin.buffer.readline()
-            if not line:
-                return None
-            if line in {b"\r\n", b"\n"}:
-                break
-            decoded = line.decode("utf-8").strip()
-            if not decoded:
-                break
-            key, _, value = decoded.partition(":")
-            headers[key.lower()] = value.strip()
-
-        content_length = headers.get("content-length")
-        if content_length is None:
-            raise JsonRpcError(-32700, "Missing Content-Length header.")
-
-        body = sys.stdin.buffer.read(int(content_length))
-        return json.loads(body.decode("utf-8"))
-
-    def _write_message(self, payload: dict[str, Any]) -> None:
-        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-        header = f"Content-Length: {len(body)}\r\n\r\n".encode("utf-8")
-        sys.stdout.buffer.write(header)
-        sys.stdout.buffer.write(body)
-        sys.stdout.buffer.flush()
-
-    def _require_string(self, args: dict[str, Any], key: str) -> str:
-        value = args.get(key)
-        if not isinstance(value, str) or not value.strip():
-            raise ValueError(f"{key} is required and must be a non-empty string.")
-        return value
+    app = app or NinovaMcpApp()
+    mcp = FastMCP(SERVER_NAME, instructions=SERVER_INSTRUCTIONS)
+    apply_server_version(mcp)
+    register_tools(mcp, app, LOCAL_TOOL_NAMES)
+    return mcp
 
 
 def main() -> None:
-    app = NinovaMcpApp()
-    server = StdioMcpServer(app)
-    server.run()
+    build_stdio_server().run()
 
 
 if __name__ == "__main__":

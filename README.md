@@ -31,7 +31,22 @@ It logs in with `NINOVA_USERNAME` and `NINOVA_PASSWORD`, opens its own temporary
 
 It does not read Chrome cookies or reuse browser profiles.
 
-## Easiest install: paste this prompt to your AI assistant
+## Easiest: one-click install for Claude Desktop (no terminal)
+
+If you just want it to work, use the Claude Desktop extension. No commands, no config files.
+
+1. **Install Python 3.11+ once** if you don't have it — [python.org/downloads](https://www.python.org/downloads/) (the installer is a normal "next, next, finish"). This is the only prerequisite.
+2. Download the bundle for your computer from the **[latest release](https://github.com/hikmedit/ninova-mcp/releases/latest)**:
+   - macOS (Apple Silicon / M1–M4): `ninova-mcp-*-darwin-arm64.mcpb`
+   - macOS (Intel): `ninova-mcp-*-darwin-x86_64.mcpb`
+   - Windows: `ninova-mcp-*-windows-amd64.mcpb`
+3. **Double-click the `.mcpb` file** (or open Claude Desktop → Settings → Extensions → Install Extension). Claude Desktop opens an install dialog.
+4. Type your **İTÜ username and password** into the form and click Install. Your password is stored in your operating system's secure keychain and is only ever sent to `ninova.itu.edu.tr`.
+5. Start a chat and ask, for example, *"Ninova'da yaklaşan ödev teslimlerim neler?"*
+
+That's it. To confirm it's connected, ask Claude to run the `auth_status` tool.
+
+## Alternative: paste this prompt to your AI assistant
 
 Copy the block below into ChatGPT, Claude, Cursor, Codex, or any chat AI. It will install the server and configure your MCP client end-to-end.
 

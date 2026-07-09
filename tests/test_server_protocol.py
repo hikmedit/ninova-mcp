@@ -1,103 +1,72 @@
+"""Protocol tests that drive the stdio server with the OFFICIAL MCP client.
+
+This exercises the real newline-delimited JSON framing that Claude Desktop,
+Claude Code, Cursor, and Codex use. A hand-rolled Content-Length handshake
+would pass against a broken server, so we deliberately go through the SDK
+client instead.
+"""
 from __future__ import annotations
 
-import json
+import asyncio
 import os
-import subprocess
 import sys
 import unittest
 from pathlib import Path
 
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def _encode_message(payload: dict) -> bytes:
-    body = json.dumps(payload).encode("utf-8")
-    return f"Content-Length: {len(body)}\r\n\r\n".encode("utf-8") + body
+async def _handshake() -> tuple[str, str, list[str], bool]:
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(ROOT / "src")
+    # Dummy credentials: initialize/tools-list/auth_status never hit the network.
+    env.setdefault("NINOVA_USERNAME", "dummy")
+    env.setdefault("NINOVA_PASSWORD", "dummy")
 
-
-def _decode_message(stream) -> dict:
-    headers = {}
-    while True:
-        line = stream.readline()
-        if not line:
-            raise RuntimeError("EOF while waiting for MCP response")
-        if line in {b"\r\n", b"\n"}:
-            break
-        key, value = line.decode("utf-8").split(":", 1)
-        headers[key.lower()] = value.strip()
-    length = int(headers["content-length"])
-    body = stream.read(length)
-    return json.loads(body.decode("utf-8"))
+    params = StdioServerParameters(
+        command=sys.executable,
+        args=["-m", "ninova_mcp"],
+        env=env,
+        cwd=str(ROOT),
+    )
+    async with stdio_client(params) as (read, write):
+        async with ClientSession(read, write) as session:
+            init = await session.initialize()
+            tools = await session.list_tools()
+            names = [tool.name for tool in tools.tools]
+            result = await session.call_tool("auth_status", {})
+            return init.serverInfo.name, init.protocolVersion, names, result.isError
 
 
 class ServerProtocolTests(unittest.TestCase):
-    def test_initialize_and_list_tools(self) -> None:
-        env = os.environ.copy()
-        env["PYTHONPATH"] = str(ROOT / "src")
+    def test_initialize_list_tools_and_call(self) -> None:
+        name, protocol_version, tool_names, auth_is_error = asyncio.run(_handshake())
 
-        process = subprocess.Popen(
-            [sys.executable, "-m", "ninova_mcp"],
-            cwd=ROOT,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            env=env,
-        )
-        try:
-            assert process.stdin is not None
-            assert process.stdout is not None
+        self.assertEqual(name, "ninova-mcp")
+        self.assertTrue(protocol_version)  # SDK negotiates a real MCP version
 
-            process.stdin.write(
-                _encode_message(
-                    {
-                        "jsonrpc": "2.0",
-                        "id": 1,
-                        "method": "initialize",
-                        "params": {
-                            "protocolVersion": "2025-11-05",
-                            "capabilities": {},
-                            "clientInfo": {"name": "test", "version": "1.0"},
-                        },
-                    }
-                )
-            )
-            process.stdin.flush()
-            initialize_response = _decode_message(process.stdout)
-            self.assertEqual(initialize_response["result"]["serverInfo"]["name"], "ninova-mcp")
+        for expected in (
+            "auth_status",
+            "get_dashboard",
+            "download_resource",
+            "get_course_announcements",
+            "get_course_assignments",
+            "get_course_class_files",
+            "get_dashboard_assignments",
+            "get_course_grades",
+            "get_course_message_board",
+            "get_course_overview",
+            "sync_all_courses",
+            "get_updates",
+            "get_upcoming_deadlines",
+        ):
+            self.assertIn(expected, tool_names)
 
-            process.stdin.write(
-                _encode_message(
-                    {
-                        "jsonrpc": "2.0",
-                        "id": 2,
-                        "method": "tools/list",
-                    }
-                )
-            )
-            process.stdin.flush()
-            tools_response = _decode_message(process.stdout)
-            tool_names = [tool["name"] for tool in tools_response["result"]["tools"]]
-            self.assertIn("get_dashboard", tool_names)
-            self.assertIn("download_resource", tool_names)
-            self.assertIn("get_course_announcements", tool_names)
-            self.assertIn("get_course_assignments", tool_names)
-            self.assertIn("get_course_class_files", tool_names)
-            self.assertIn("get_dashboard_assignments", tool_names)
-            self.assertIn("get_course_grades", tool_names)
-            self.assertIn("get_course_message_board", tool_names)
-            self.assertIn("get_course_overview", tool_names)
-            self.assertIn("sync_all_courses", tool_names)
-            self.assertIn("get_updates", tool_names)
-        finally:
-            if process.stdin is not None:
-                process.stdin.close()
-            if process.stdout is not None:
-                process.stdout.close()
-            if process.stderr is not None:
-                process.stderr.close()
-            process.kill()
-            process.wait(timeout=5)
+        # auth_status returns cleanly (credentials present but not authenticated).
+        self.assertFalse(auth_is_error)
 
 
 if __name__ == "__main__":

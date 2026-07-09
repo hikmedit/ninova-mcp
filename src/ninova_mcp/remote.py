@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import contextlib
 import os
-from collections.abc import Callable
-from typing import Any
 from urllib.parse import urlparse
 
 import uvicorn
@@ -15,7 +13,14 @@ from starlette.responses import JSONResponse
 from starlette.routing import Mount, Route
 
 from .env import load_ninova_env
-from .server import SERVER_NAME, SERVER_VERSION, TOOLS, NinovaMcpApp
+from .server import (
+    REMOTE_TOOL_NAMES,
+    SERVER_NAME,
+    SERVER_VERSION,
+    NinovaMcpApp,
+    apply_server_version,
+    register_tools,
+)
 
 
 def _env_flag(name: str, default: bool = False) -> bool:
@@ -37,10 +42,6 @@ def _normalize_mount_path(value: str | None, default: str) -> str:
     if not path.startswith("/"):
         path = "/" + path
     return path.rstrip("/") or "/"
-
-
-def _tool_metadata_by_name() -> dict[str, dict[str, Any]]:
-    return {tool["name"]: tool for tool in TOOLS}
 
 
 def _build_transport_security() -> TransportSecuritySettings | None:
@@ -95,42 +96,8 @@ def _build_fastmcp(app_logic: NinovaMcpApp, mount_path: str) -> FastMCP:
         website_url=os.getenv("NINOVA_PUBLIC_BASE_URL"),
     )
 
-    metadata = _tool_metadata_by_name()
-    exposed_tools = {
-        "auth_status": app_logic.auth_status,
-        "refresh_session": app_logic.refresh_session,
-        "get_dashboard": app_logic.get_dashboard,
-        "list_courses": app_logic.list_courses,
-        "get_courses": app_logic.get_courses,
-        "get_course_sections": app_logic.get_course_sections,
-        "get_course_overview": app_logic.get_course_overview,
-        "get_course_info": app_logic.get_course_info,
-        "get_course_announcements": app_logic.get_course_announcements,
-        "get_course_assignments": app_logic.get_course_assignments,
-        "get_course_class_files": app_logic.get_course_class_files,
-        "get_course_lesson_files": app_logic.get_course_lesson_files,
-        "get_course_grades": app_logic.get_course_grades,
-        "get_course_message_board": app_logic.get_course_message_board,
-        "get_course_attendance": app_logic.get_course_attendance,
-        "get_course_remote_learning": app_logic.get_course_remote_learning,
-        "get_dashboard_announcements": app_logic.get_dashboard_announcements,
-        "get_dashboard_assignments": app_logic.get_dashboard_assignments,
-        "sync_all_courses": app_logic.sync_all_courses,
-        "get_updates": app_logic.get_updates,
-        "get_upcoming_deadlines": app_logic.get_upcoming_deadlines,
-        "read_page": app_logic.read_page,
-        "crawl_course": app_logic.crawl_course,
-    }
-
-    for name, fn in exposed_tools.items():
-        meta = metadata.get(name, {})
-        mcp.add_tool(
-            fn,
-            name=name,
-            title=meta.get("title"),
-            description=meta.get("description"),
-            structured_output=True,
-        )
+    apply_server_version(mcp)
+    register_tools(mcp, app_logic, REMOTE_TOOL_NAMES)
 
     # Keep the mounted path on the instance for observability/debug logs if needed.
     mcp.mount_path = mount_path  # type: ignore[attr-defined]
