@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ninova-mcp"
-version = "0.1.4"
+version = "0.1.5"
 description = "Credential-based MCP server for ITU Ninova: read courses, announcements, files, assignments, grades, attendance, and deadlines from Claude, Cursor, Codex, and other MCP clients."
 readme = "README.md"
 requires-python = ">=3.11"

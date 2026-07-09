@@ -40,11 +40,26 @@ from .parsing import (
 from .tracking import diff_course_snapshots, load_tracking_state, merge_updates, save_tracking_state, utc_now_iso
 
 SERVER_NAME = "ninova-mcp"
-SERVER_VERSION = "0.1.4"
+SERVER_VERSION = "0.1.5"
 
 SERVER_INSTRUCTIONS = (
-    "Set NINOVA_USERNAME and NINOVA_PASSWORD before using Ninova tools. "
-    "This server logs in through the normal Ninova flow and keeps its own in-memory session."
+    "This connector reads the user's own İTÜ Ninova account: courses, "
+    "announcements, assignments, grades, class/lesson files, message boards, "
+    "attendance, and deadlines.\n\n"
+    "Whenever the user asks about their courses or school — assignments/homework "
+    "(ödev), due dates or deadlines (teslim, son tarih), grades (not, ortalama), "
+    "announcements (duyuru), lecture or class files (ders/sınıf dosyası), "
+    "attendance (yoklama), message boards (mesaj panosu), or a specific course "
+    "(ders) — call these tools to fetch the real answer live from Ninova instead "
+    "of guessing. You DO have access; don't say otherwise. Questions are often in "
+    "Turkish.\n\n"
+    "Typical flow: call list_courses or get_dashboard to discover the courses, "
+    "resolve the one the user means, then call the specific tool (e.g. "
+    "get_course_assignments, get_course_grades, get_course_announcements). For "
+    "'what's due / upcoming' use get_upcoming_deadlines; for a broad status use "
+    "get_dashboard.\n\n"
+    "Requires NINOVA_USERNAME and NINOVA_PASSWORD; if login fails, ask the user to "
+    "check their İTÜ credentials."
 )
 
 

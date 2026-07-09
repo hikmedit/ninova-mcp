@@ -15,6 +15,7 @@ from starlette.routing import Mount, Route
 from .env import load_ninova_env
 from .server import (
     REMOTE_TOOL_NAMES,
+    SERVER_INSTRUCTIONS,
     SERVER_NAME,
     SERVER_VERSION,
     NinovaMcpApp,
@@ -81,12 +82,7 @@ def _build_fastmcp(app_logic: NinovaMcpApp, mount_path: str) -> FastMCP:
     port = int(os.getenv("PORT") or os.getenv("NINOVA_REMOTE_PORT") or "8000")
     mcp = FastMCP(
         SERVER_NAME,
-        instructions=(
-            "Ninova tracking connector. This server logs in with the configured "
-            "NINOVA_USERNAME and NINOVA_PASSWORD and exposes tools for reading "
-            "courses, assignments, grades, attendance, message boards, and "
-            "tracked updates."
-        ),
+        instructions=SERVER_INSTRUCTIONS,
         host=host,
         port=port,
         json_response=True,
