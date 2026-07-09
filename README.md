@@ -33,15 +33,14 @@ It does not read Chrome cookies or reuse browser profiles.
 
 ## Easiest: one-click install for Claude Desktop (no terminal)
 
-If you just want it to work, use the Claude Desktop extension. No commands, no config files.
+If you just want it to work, use the Claude Desktop extension. No commands, no config files, and **no need to install Python** — the bundle ships its own.
 
-1. **Install Python 3.11+ once** if you don't have it — [python.org/downloads](https://www.python.org/downloads/) (the installer is a normal "next, next, finish"). This is the only prerequisite.
-2. Download the bundle for your computer from the **[latest release](https://github.com/hikmedit/ninova-mcp/releases/latest)**:
+1. Download the bundle for your computer from the **[latest release](https://github.com/hikmedit/ninova-mcp/releases/latest)**:
    - macOS (Apple Silicon / M1–M4): `ninova-mcp-*-darwin-arm64.mcpb`
    - Windows: `ninova-mcp-*-windows-amd64.mcpb`
-3. **Double-click the `.mcpb` file** (or open Claude Desktop → Settings → Extensions → Install Extension). Claude Desktop opens an install dialog.
-4. Type your **İTÜ username and password** into the form and click Install. Your password is stored in your operating system's secure keychain and is only ever sent to `ninova.itu.edu.tr`.
-5. Start a chat and ask, for example, *"Ninova'da yaklaşan ödev teslimlerim neler?"*
+2. **Double-click the `.mcpb` file** (or open Claude Desktop → Settings → Extensions → Install Extension). Claude Desktop opens an install dialog.
+3. Type your **İTÜ username and password** into the form and click Install. Your password is stored in your operating system's secure keychain and is only ever sent to `ninova.itu.edu.tr`.
+4. Start a chat and ask, for example, *"Ninova'da yaklaşan ödev teslimlerim neler?"*
 
 That's it. To confirm it's connected, ask Claude to run the `auth_status` tool.
 

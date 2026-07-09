@@ -14,10 +14,10 @@ Ninova MCP is a local MCP server that lets AI assistants read your own ITU Ninov
 Best for non-technical users. Download the bundle for your platform from the
 [latest release](https://github.com/hikmedit/ninova-mcp/releases/latest),
 double-click it, and Claude Desktop walks you through a form for your İTÜ
-username and password (the password goes into your OS keychain). This still
-needs Python 3.11+ installed on the machine (the bundle carries every Python
-dependency, but not the Python interpreter itself). No `pip`, `pipx`, or JSON
-editing. Skip the rest of this section if you use this option.
+username and password (the password goes into your OS keychain). The bundle is
+fully self-contained — it ships its own Python runtime and every dependency, so
+there is **nothing else to install** (no Python, no `pip`, no JSON editing).
+Skip the rest of this section if you use this option.
 
 ### Option A: pipx (recommended)
 

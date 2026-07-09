@@ -25,7 +25,7 @@
     "type": "python",
     "entry_point": "server/main.py",
     "mcp_config": {
-      "command": "python3",
+      "command": "${__dirname}/server/runtime/bin/python3",
       "args": [
         "${__dirname}/server/main.py"
       ],
@@ -36,7 +36,7 @@
       },
       "platform_overrides": {
         "win32": {
-          "command": "python"
+          "command": "${__dirname}/server/runtime/python.exe"
         }
       }
     }
