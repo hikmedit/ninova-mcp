@@ -1,8 +1,8 @@
 {
   "manifest_version": "0.3",
   "name": "ninova-mcp",
-  "display_name": "Ninova (İTÜ)",
-  "version": "0.1.3",
+  "display_name": "Ninova",
+  "version": "0.1.4",
   "description": "İTÜ Ninova'yı Claude'a bağlar: dersler, duyurular, ödevler, notlar, dosyalar, mesaj panosu, yoklama ve yaklaşan teslim tarihleri.",
   "long_description": "Ninova MCP, İTÜ Ninova hesabına senin verdiğin kullanıcı adı ve şifreyle girer, kendi geçici oturumunu açar ve Claude'un derslerini, duyurularını, ödevlerini, notlarını, dosyalarını, mesaj panosunu, yoklamanı ve yaklaşan teslim tarihlerini okumasını sağlar. Kimlik bilgilerin cihazının güvenli anahtarlığında saklanır ve yalnızca ninova.itu.edu.tr'ye gönderilir; başka hiçbir sunucuya gitmez. Tarayıcı çerezlerini okumaz.",
   "author": {

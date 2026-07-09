@@ -40,7 +40,7 @@ from .parsing import (
 from .tracking import diff_course_snapshots, load_tracking_state, merge_updates, save_tracking_state, utc_now_iso
 
 SERVER_NAME = "ninova-mcp"
-SERVER_VERSION = "0.1.3"
+SERVER_VERSION = "0.1.4"
 
 SERVER_INSTRUCTIONS = (
     "Set NINOVA_USERNAME and NINOVA_PASSWORD before using Ninova tools. "
