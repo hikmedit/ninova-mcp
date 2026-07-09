@@ -167,9 +167,6 @@
       "darwin",
       "win32",
       "linux"
-    ],
-    "runtimes": {
-      "python": ">=3.11,<4.0"
-    }
+    ]
   }
 }
