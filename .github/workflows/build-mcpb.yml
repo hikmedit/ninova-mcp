@@ -24,8 +24,6 @@ jobs:
         include:
           - os: macos-14
             label: macOS Apple Silicon
-          - os: macos-13
-            label: macOS Intel
           - os: windows-latest
             label: Windows x64
           - os: ubuntu-latest

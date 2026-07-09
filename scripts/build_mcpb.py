@@ -137,7 +137,7 @@ def main() -> int:
     _pack(BUILD, output)
 
     size_mb = output.stat().st_size / (1024 * 1024)
-    print(f"\n[build] ✅ {output}  ({size_mb:.1f} MB)")
+    print(f"\n[build] done: {output}  ({size_mb:.1f} MB)")
     return 0
 
 

@@ -38,7 +38,6 @@ If you just want it to work, use the Claude Desktop extension. No commands, no c
 1. **Install Python 3.11+ once** if you don't have it — [python.org/downloads](https://www.python.org/downloads/) (the installer is a normal "next, next, finish"). This is the only prerequisite.
 2. Download the bundle for your computer from the **[latest release](https://github.com/hikmedit/ninova-mcp/releases/latest)**:
    - macOS (Apple Silicon / M1–M4): `ninova-mcp-*-darwin-arm64.mcpb`
-   - macOS (Intel): `ninova-mcp-*-darwin-x86_64.mcpb`
    - Windows: `ninova-mcp-*-windows-amd64.mcpb`
 3. **Double-click the `.mcpb` file** (or open Claude Desktop → Settings → Extensions → Install Extension). Claude Desktop opens an install dialog.
 4. Type your **İTÜ username and password** into the form and click Install. Your password is stored in your operating system's secure keychain and is only ever sent to `ninova.itu.edu.tr`.
