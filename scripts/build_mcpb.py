@@ -30,12 +30,30 @@ BUILD = ROOT / "build" / "mcpb"
 DIST = ROOT / "dist"
 
 
-def _load_source_metadata() -> tuple[str, list[dict[str, str]]]:
-    sys.path.insert(0, str(ROOT / "src"))
-    from ninova_mcp.server import TOOLS, SERVER_VERSION  # noqa: E402
+def _read_version() -> str:
+    """Read the version straight from pyproject.toml (no dependencies needed)."""
+    import tomllib
 
-    tools = [{"name": t["name"], "description": t["description"]} for t in TOOLS]
-    return SERVER_VERSION, tools
+    data = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    return data["project"]["version"]
+
+
+def _read_tools() -> list[dict[str, str]] | None:
+    """Fresh tool list from source, or None if runtime deps aren't importable.
+
+    On a clean CI runner ``ninova_mcp`` cannot be imported until its
+    dependencies exist, so we fall back to the tool list already committed in
+    ``mcpb/manifest.json`` instead of failing the build.
+    """
+    try:
+        if str(ROOT / "src") not in sys.path:
+            sys.path.insert(0, str(ROOT / "src"))
+        from ninova_mcp.server import TOOLS  # noqa: E402
+
+        return [{"name": t["name"], "description": t["description"]} for t in TOOLS]
+    except Exception as exc:  # deps not installed in this environment
+        print(f"[build] note: keeping committed manifest tools ({exc})")
+        return None
 
 
 def _platform_tag() -> str:
@@ -62,10 +80,13 @@ def _vendor_dependencies(lib_dir: Path) -> None:
     )
 
 
-def _write_manifest(version: str, tools: list[dict[str, str]], dest: Path) -> None:
+def _write_manifest(
+    version: str, tools: list[dict[str, str]] | None, dest: Path
+) -> None:
     manifest = json.loads((MCPB_SRC / "manifest.json").read_text(encoding="utf-8"))
     manifest["version"] = version
-    manifest["tools"] = tools
+    if tools is not None:
+        manifest["tools"] = tools
     dest.write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
@@ -97,7 +118,8 @@ def _pack(build_dir: Path, output: Path) -> None:
 
 
 def main() -> int:
-    version, tools = _load_source_metadata()
+    version = _read_version()
+    tools = _read_tools()
     tag = _platform_tag()
     print(f"[build] ninova-mcp {version} for {tag} (python {platform.python_version()})")
 
