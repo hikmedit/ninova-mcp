@@ -62,6 +62,11 @@ class ServerProtocolTests(unittest.TestCase):
             "sync_all_courses",
             "get_updates",
             "get_upcoming_deadlines",
+            "obs_get_graduation_progress",
+            "obs_get_registration_options",
+            "obs_public_check_conflicts",
+            "obs_api_get",
+            "hocametre_rate_course_sections",
         ):
             self.assertIn(expected, tool_names)
 

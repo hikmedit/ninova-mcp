@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ninova-mcp"
-version = "0.1.5"
-description = "Credential-based MCP server for ITU Ninova: read courses, announcements, files, assignments, grades, attendance, and deadlines from Claude, Cursor, Codex, and other MCP clients."
+version = "0.2.0"
+description = "Credential-based MCP server for ITU Ninova and OBS: courses, announcements, files, assignments, grades, transcript, graduation progress, course-registration planning with prerequisites and schedule-conflict checks, and hocametre instructor ratings — from Claude, Cursor, Codex, and other MCP clients."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
@@ -13,7 +13,7 @@ license-files = ["LICENSE"]
 authors = [
   { name = "Hikmet Gultekin" },
 ]
-keywords = ["mcp", "model-context-protocol", "ninova", "itu", "claude", "cursor"]
+keywords = ["mcp", "model-context-protocol", "ninova", "obs", "itu", "course-registration", "hocametre", "claude", "cursor"]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Environment :: Console",

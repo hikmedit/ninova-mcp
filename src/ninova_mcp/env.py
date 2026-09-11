@@ -54,6 +54,9 @@ def _unquote(value: str) -> str:
     return value
 
 
+ENV_PREFIXES = ("NINOVA_", "ITU_", "OBS_")
+
+
 def load_ninova_env(
     env_file: str | Path | None = None,
     *,
@@ -71,7 +74,7 @@ def load_ninova_env(
         if parsed is None:
             continue
         key, value = parsed
-        if not key.startswith("NINOVA_"):
+        if not key.startswith(ENV_PREFIXES):
             continue
         if not override and key in os.environ:
             continue

@@ -1,10 +1,10 @@
 {
   "manifest_version": "0.3",
   "name": "ninova-mcp",
-  "display_name": "Ninova",
-  "version": "0.1.5",
-  "description": "İTÜ Ninova'yı Claude'a bağlar: dersler, duyurular, ödevler, notlar, dosyalar, mesaj panosu, yoklama ve yaklaşan teslim tarihleri.",
-  "long_description": "Ninova MCP, İTÜ Ninova hesabına senin verdiğin kullanıcı adı ve şifreyle girer, kendi geçici oturumunu açar ve Claude'un derslerini, duyurularını, ödevlerini, notlarını, dosyalarını, mesaj panosunu, yoklamanı ve yaklaşan teslim tarihlerini okumasını sağlar. Kimlik bilgilerin cihazının güvenli anahtarlığında saklanır ve yalnızca ninova.itu.edu.tr'ye gönderilir; başka hiçbir sunucuya gitmez. Tarayıcı çerezlerini okumaz.",
+  "display_name": "Ninova + OBS",
+  "version": "0.2.0",
+  "description": "İTÜ Ninova ve OBS'yi Claude'a bağlar: dersler, duyurular, ödevler, notlar, transkript, mezuniyet durumu, ders programı ve ders seçimi, hocametre puanları.",
+  "long_description": "Ninova MCP, İTÜ hesabına senin verdiğin kullanıcı adı ve şifreyle girer ve Claude'un iki sistemi okumasını sağlar. Ninova: derslerin, duyurular, ödevler, notlar, dosyalar, mesaj panosu, yoklama ve yaklaşan teslim tarihleri. OBS (obs.itu.edu.tr): harf notların, dönem dönem ortalaman, 'Mezuniyetime Ne Kaldı', kayıtlı derslerin, haftalık ve sınav programın, transkriptin. Ayrıca giriş gerektirmeyen açık OBS ders programından gelecek dönem açılan şubeleri (CRN, saat, kontenjan) okur, önşart ve eşdeğerlikleri senin planına göre değerlendirip hangi dersleri alabileceğini çıkarır, seçtiğin CRN'lerde çakışma var mı kontrol eder ve notkutusu.com'daki anonim 'hocametre' puanlarıyla şubeleri hocaya göre karşılaştırır. Kimlik bilgilerin cihazının güvenli anahtarlığında saklanır ve yalnızca ninova.itu.edu.tr ile obs.itu.edu.tr'ye (İTÜ'nün girisv3 tek oturum açma sistemi üzerinden) gönderilir; hocametre verisi giriş yapılmadan, herkese açık uçlardan okunur. Hiçbir şey kayıt etmez, değiştirmez; tarayıcı çerezlerini okumaz.",
   "author": {
     "name": "Hikmet Gultekin",
     "url": "https://github.com/hikmedit"
@@ -15,9 +15,12 @@
   "license": "MIT",
   "keywords": [
     "ninova",
+    "obs",
     "itu",
     "education",
     "university",
+    "course-registration",
+    "hocametre",
     "claude",
     "mcp"
   ],
@@ -145,19 +148,167 @@
     {
       "name": "diff_snapshot",
       "description": "Compare the current state of a Ninova page against a previously stored snapshot."
+    },
+    {
+      "name": "obs_auth_status",
+      "description": "Check whether the ITU account can sign in to OBS (obs.itu.edu.tr) via girisv3 single sign-on."
+    },
+    {
+      "name": "obs_refresh_session",
+      "description": "Force a new OBS login and issue a fresh API token."
+    },
+    {
+      "name": "obs_get_profile",
+      "description": "Return the student's personal details, student number, faculty, department, advisors, and academic programs."
+    },
+    {
+      "name": "obs_list_semesters",
+      "description": "List every academic semester available for this student, with the internal semester id and term code."
+    },
+    {
+      "name": "obs_get_graduation_progress",
+      "description": "Return 'Mezuniyetime Ne Kaldı': the course plan requirements, credits earned vs. required, GPA and internship requirements, every completed course, and every course still missing."
+    },
+    {
+      "name": "obs_get_academic_standing",
+      "description": "Return the semester-by-semester GPA, semester GPA, credit, and class-level history."
+    },
+    {
+      "name": "obs_get_semester_status",
+      "description": "Return the academic status snapshot (class level, credits, GPA) for one semester."
+    },
+    {
+      "name": "obs_get_grades",
+      "description": "Return the final letter grades for one semester, with grade points and pass/fail flags."
+    },
+    {
+      "name": "obs_get_interim_grades",
+      "description": "Return published in-term grades (midterm, quizzes, final) for a semester's courses, each with the class mean, standard deviation, the student's rank, and the component weight — enough to estimate a letter grade before it is posted."
+    },
+    {
+      "name": "obs_get_course_history",
+      "description": "Return every graded course across every semester, plus pass/fail counts and the list of failed courses."
+    },
+    {
+      "name": "obs_get_registered_courses",
+      "description": "Return the courses the student is registered to for one semester, with CRN, place, and time."
+    },
+    {
+      "name": "obs_get_schedule",
+      "description": "Return the weekly class schedule for one semester, sorted by day and start time."
+    },
+    {
+      "name": "obs_get_exam_schedule",
+      "description": "Return the final exam dates, times, and rooms for one semester."
+    },
+    {
+      "name": "obs_get_attendance",
+      "description": "Return the attendance record for one registered class, identified by its OBS class id."
+    },
+    {
+      "name": "obs_get_registration_status",
+      "description": "Return whether course registration is currently open for the student, per semester."
+    },
+    {
+      "name": "obs_get_internships",
+      "description": "Return the student's recorded internships."
+    },
+    {
+      "name": "obs_get_announcements",
+      "description": "Return announcements published in OBS."
+    },
+    {
+      "name": "obs_get_transcript",
+      "description": "Download the official transcript preview PDF from OBS and save it to disk."
+    },
+    {
+      "name": "obs_check_prerequisites",
+      "description": "Decide which courses the student may register for, by evaluating each course's published prerequisite expression against their own passed courses, expanded through the course-plan equivalences that cover renamed course codes. Prerequisites reflect the programme's current definitions even for an older plan. Defaults to every course still required for graduation."
+    },
+    {
+      "name": "obs_get_registration_options",
+      "description": "For every course still required for graduation: which codes satisfy it (including renamed equivalents), whether any of them is offered this term with CRNs and meeting times, and whether the prerequisites are met. The single call to drive course-registration planning."
+    },
+    {
+      "name": "obs_project_gpa",
+      "description": "Project the cumulative GPA under hypothetical grades, e.g. [\"YZV 201E:CC\", \"ING 201A:BB\"]. Models ITU's rule that only the last attempt of a course counts and that equivalent course codes are the same course. Reports whether the reconstruction still matches the GPA OBS itself reports, so a silent model drift is visible."
+    },
+    {
+      "name": "obs_get_elective_pool",
+      "description": "Return every course that can fill one elective slot of the student's course plan, by group id."
+    },
+    {
+      "name": "obs_get_elective_options",
+      "description": "For every elective slot the student has not yet filled: the pool of eligible courses, which of them run this term with CRNs and times, and whether the prerequisites are met."
+    },
+    {
+      "name": "obs_api_get",
+      "description": "Read any /api/ogrenci/... OBS endpoint directly and return the raw JSON. Read-only escape hatch."
+    },
+    {
+      "name": "obs_public_active_term",
+      "description": "Return the term whose course schedule is currently published on the public OBS pages, with its term code. This is usually the upcoming term, not the one registration still calls current. No login required."
+    },
+    {
+      "name": "obs_public_get_prerequisites",
+      "description": "Return the published prerequisite expression and minimum completed credits for every course in a branch. These reflect the programme's current definitions, not any one course plan. No login required."
+    },
+    {
+      "name": "obs_public_get_equivalences",
+      "description": "Return which courses count in place of a plan course, for one course plan and branch. This is how renamed course codes are reconciled across cohorts. No login required."
+    },
+    {
+      "name": "obs_public_list_plans",
+      "description": "List the course plans published for a programme, with their plan ids. No login required."
+    },
+    {
+      "name": "obs_public_registration_term",
+      "description": "Return the term the registration system reports as current, which lags the published schedule. No login required."
+    },
+    {
+      "name": "obs_public_list_branches",
+      "description": "List every course branch code (BLG, YZV, MAT, ...) published for a program level. No login required."
+    },
+    {
+      "name": "obs_public_get_schedule",
+      "description": "Return every published section for a course branch: CRN, meeting days and times, instructor, room, quota, and remaining seats. No login required."
+    },
+    {
+      "name": "obs_public_find_courses",
+      "description": "Look up several courses at once by code and return their published sections. No login required."
+    },
+    {
+      "name": "obs_public_check_conflicts",
+      "description": "Check a candidate set of sections for time clashes and return the resulting weekly timetable. Each selection is {code, crn}; the CRN can be omitted when a course has only one section."
+    },
+    {
+      "name": "hocametre_search_instructors",
+      "description": "Search notkutusu.com's public 'hocametre' instructor ratings by (partial) instructor name and return matching profiles with their slugs. No login required; the same person may appear as several duplicate profiles."
+    },
+    {
+      "name": "hocametre_get_instructor",
+      "description": "Return one instructor profile's anonymous student ratings (note sharing, helpfulness, homework load, attendance strictness, teaching skills; each 1-5 with vote counts) and, optionally, the newest student comments. No login required."
+    },
+    {
+      "name": "hocametre_lookup_instructors",
+      "description": "Resolve several instructor names (as printed in the OBS schedule) to their hocametre ratings. Returns every matching profile, most-voted first, plus a vote-weighted 'combined' score because the same instructor is often split across duplicate profiles. No login required."
+    },
+    {
+      "name": "hocametre_rate_course_sections",
+      "description": "For each given course code, list every section published in the public OBS schedule for the upcoming term (CRN, times, room, quota, remaining seats) together with its instructor's hocametre ratings, so sections of the same course can be compared by instructor. No login required."
     }
   ],
   "user_config": {
     "ninova_username": {
       "type": "string",
       "title": "İTÜ Kullanıcı Adı",
-      "description": "Ninova / İTÜ giriş kullanıcı adın (örn. gultekinh22).",
+      "description": "İTÜ giriş kullanıcı adın (örn. gultekinh22). Ninova ve OBS için aynı hesap kullanılır.",
       "required": true
     },
     "ninova_password": {
       "type": "string",
       "title": "İTÜ Şifresi",
-      "description": "İTÜ şifren. Cihazının güvenli anahtarlığında saklanır ve yalnızca ninova.itu.edu.tr'ye gönderilir.",
+      "description": "İTÜ şifren. Cihazının güvenli anahtarlığında saklanır ve yalnızca ninova.itu.edu.tr ile obs.itu.edu.tr'ye gönderilir.",
       "sensitive": true,
       "required": true
     }

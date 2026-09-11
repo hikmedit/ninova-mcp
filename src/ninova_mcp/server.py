@@ -10,6 +10,9 @@ from urllib.parse import urlparse
 
 from .client import NinovaAuthError, NinovaClient, NinovaError
 from .env import load_ninova_env
+from .notkutusu import NotkutusuClient, split_instructor_field
+from .obs import ObsService
+from .obs_public import ObsPublicClient
 from .parsing import (
     SnapshotReference,
     compare_snapshot_payloads,
@@ -40,12 +43,26 @@ from .parsing import (
 from .tracking import diff_course_snapshots, load_tracking_state, merge_updates, save_tracking_state, utc_now_iso
 
 SERVER_NAME = "ninova-mcp"
-SERVER_VERSION = "0.1.5"
+SERVER_VERSION = "0.2.0"
 
 SERVER_INSTRUCTIONS = (
     "This connector reads the user's own İTÜ Ninova account: courses, "
     "announcements, assignments, grades, class/lesson files, message boards, "
-    "attendance, and deadlines.\n\n"
+    "attendance, and deadlines. It also reads the user's İTÜ OBS student "
+    "record (obs.itu.edu.tr) with the same credentials — transcript-level "
+    "grades, GPA history, graduation progress (Mezuniyetime Ne Kaldı), the "
+    "registered courses and weekly/exam schedules — plus the public OBS course "
+    "schedule of the upcoming term (no login), and anonymous instructor "
+    "ratings from notkutusu.com's 'hocametre' (public, no login).\n\n"
+    "For course-registration planning (ders seçimi / ders programı) use "
+    "obs_get_registration_options (which required courses are offered, with "
+    "CRNs, times, and whether prerequisites are met), obs_get_elective_options "
+    "(the same for unfilled elective slots), obs_public_find_courses for "
+    "sections of specific courses, obs_public_check_conflicts to validate a "
+    "CRN set for time clashes, and hocametre_rate_course_sections to compare "
+    "the instructors of those sections. Always show course names next to "
+    "course codes, and never compare raw course codes across cohorts: plan "
+    "equivalences rename courses, so rely on the obs_* tools' own matching.\n\n"
     "Whenever the user asks about their courses or school — assignments/homework "
     "(ödev), due dates or deadlines (teslim, son tarih), grades (not, ortalama), "
     "announcements (duyuru), lecture or class files (ders/sınıf dosyası), "
@@ -67,6 +84,9 @@ class NinovaMcpApp:
     def __init__(self) -> None:
         load_ninova_env()
         self._client: NinovaClient | None = None
+        self._obs: ObsService | None = None
+        self._obs_public: ObsPublicClient | None = None
+        self._notkutusu: NotkutusuClient | None = None
         state_root = os.getenv("NINOVA_STATE_DIR") or str(Path.home() / ".ninova_state")
         self.state_dir = Path(state_root)
         self.snapshot_dir = self.state_dir / "snapshots"
@@ -78,6 +98,24 @@ class NinovaMcpApp:
         if self._client is None:
             self._client = NinovaClient()
         return self._client
+
+    @property
+    def obs(self) -> ObsService:
+        if self._obs is None:
+            self._obs = ObsService()
+        return self._obs
+
+    @property
+    def obs_public(self) -> ObsPublicClient:
+        if self._obs_public is None:
+            self._obs_public = ObsPublicClient()
+        return self._obs_public
+
+    @property
+    def notkutusu(self) -> NotkutusuClient:
+        if self._notkutusu is None:
+            self._notkutusu = NotkutusuClient()
+        return self._notkutusu
 
     def auth_status(self) -> dict[str, Any]:
         credentials_present = bool(os.getenv("NINOVA_USERNAME") and os.getenv("NINOVA_PASSWORD"))
@@ -1005,6 +1043,258 @@ class NinovaMcpApp:
             counter += 1
 
 
+    # ------------------------------------------------------------------ OBS
+    # Thin wrappers so that every tool is an attribute of this class with a
+    # caller-facing signature. register_tools() resolves tools by name, and
+    # FastMCP derives each tool's input schema from the wrapper's signature,
+    # so internal arguments such as the public client never leak into a tool.
+
+    def obs_auth_status(self) -> dict[str, Any]:
+        return self.obs.auth_status()
+
+    def obs_refresh_session(self) -> dict[str, Any]:
+        return self.obs.refresh_session()
+
+    def obs_get_profile(self) -> dict[str, Any]:
+        return self.obs.get_profile()
+
+    def obs_list_semesters(self) -> dict[str, Any]:
+        return self.obs.list_semesters()
+
+    def obs_get_graduation_progress(
+        self,
+        program: str | None = None,
+        include_courses: bool = True,
+        include_raw: bool = False,
+    ) -> dict[str, Any]:
+        return self.obs.get_graduation_progress(
+            program, include_courses=include_courses, include_raw=include_raw
+        )
+
+    def obs_get_academic_standing(self) -> dict[str, Any]:
+        return self.obs.get_academic_standing()
+
+    def obs_get_semester_status(self, semester: str | None = None) -> dict[str, Any]:
+        return self.obs.get_semester_status(semester)
+
+    def obs_get_grades(self, semester: str | None = None) -> dict[str, Any]:
+        return self.obs.get_grades(semester)
+
+    def obs_get_interim_grades(
+        self, semester: str | None = None, course: str | None = None
+    ) -> dict[str, Any]:
+        return self.obs.get_interim_grades(semester, course=course)
+
+    def obs_get_course_history(self, include_empty: bool = False) -> dict[str, Any]:
+        return self.obs.get_course_history(include_empty=include_empty)
+
+    def obs_get_registered_courses(self, semester: str | None = None) -> dict[str, Any]:
+        return self.obs.get_registered_courses(semester)
+
+    def obs_get_schedule(self, semester: str | None = None) -> dict[str, Any]:
+        return self.obs.get_schedule(semester)
+
+    def obs_get_exam_schedule(self, semester: str | None = None) -> dict[str, Any]:
+        return self.obs.get_exam_schedule(semester)
+
+    def obs_get_attendance(self, class_id: int) -> dict[str, Any]:
+        return self.obs.get_attendance(class_id)
+
+    def obs_get_registration_status(self) -> dict[str, Any]:
+        return self.obs.get_registration_status()
+
+    def obs_get_internships(self) -> dict[str, Any]:
+        return self.obs.get_internships()
+
+    def obs_get_announcements(self, limit: int = 20, page: int = 1) -> dict[str, Any]:
+        return self.obs.get_announcements(limit=limit, page=page)
+
+    def obs_get_transcript(
+        self,
+        language: str = "tr",
+        output_dir: str | None = None,
+        filename: str | None = None,
+    ) -> dict[str, Any]:
+        return self.obs.get_transcript(
+            language=language,
+            output_dir=output_dir or str(self.state_dir / "downloads"),
+            filename=filename,
+        )
+
+    def obs_check_prerequisites(
+        self,
+        codes: list[str] | None = None,
+        program: str | None = None,
+        assume_passed: list[str] | None = None,
+    ) -> dict[str, Any]:
+        return self.obs.check_prerequisites(
+            codes,
+            program=program,
+            assume_passed=assume_passed,
+            public_client=self.obs_public,
+        )
+
+    def obs_get_registration_options(
+        self,
+        level: str = "LS",
+        only_eligible: bool = False,
+        assume_passed: list[str] | None = None,
+        program_code: str | None = None,
+    ) -> dict[str, Any]:
+        return self.obs.get_registration_options(
+            level=level,
+            only_eligible=only_eligible,
+            assume_passed=assume_passed,
+            program_code=program_code,
+            public_client=self.obs_public,
+        )
+
+    def obs_project_gpa(self, assume_grades: list[str] | None = None) -> dict[str, Any]:
+        return self.obs.project_gpa(assume_grades, public_client=self.obs_public)
+
+    def obs_get_elective_pool(self, group_id: int) -> dict[str, Any]:
+        return self.obs.get_elective_pool(group_id)
+
+    def obs_get_elective_options(
+        self,
+        level: str = "LS",
+        only_offered: bool = True,
+        check_prerequisites: bool = True,
+        assume_passed: list[str] | None = None,
+        program_code: str | None = None,
+    ) -> dict[str, Any]:
+        return self.obs.get_elective_options(
+            level=level,
+            only_offered=only_offered,
+            check_prerequisites=check_prerequisites,
+            assume_passed=assume_passed,
+            program_code=program_code,
+            public_client=self.obs_public,
+        )
+
+    def obs_api_get(self, path: str) -> dict[str, Any]:
+        return {"path": path, "data": self.obs.api_get(path)}
+
+    # ----------------------------------------------------------- public OBS
+
+    def obs_public_active_term(self, level: str = "LS") -> dict[str, Any]:
+        return self.obs_public.active_term(level)
+
+    def obs_public_registration_term(self, level: str = "LS") -> dict[str, Any]:
+        return self.obs_public.registration_term(level)
+
+    def obs_public_list_branches(self, level: str = "LS") -> dict[str, Any]:
+        return {"level": level, "branches": self.obs_public.branch_codes(level=level)}
+
+    def obs_public_get_schedule(
+        self,
+        branch: str,
+        level: str = "LS",
+        course_code: str | None = None,
+        day: str | None = None,
+        instructor: str | None = None,
+        only_available: bool = False,
+    ) -> dict[str, Any]:
+        return self.obs_public.get_schedule(
+            branch,
+            level=level,
+            course_code=course_code,
+            day=day,
+            instructor=instructor,
+            only_available=only_available,
+        )
+
+    def obs_public_find_courses(
+        self, codes: list[str], level: str = "LS", only_available: bool = False
+    ) -> dict[str, Any]:
+        return self.obs_public.find_courses(codes, level=level, only_available=only_available)
+
+    def obs_public_get_prerequisites(self, branch: str) -> dict[str, Any]:
+        return self.obs_public.get_prerequisites(branch)
+
+    def obs_public_list_plans(self, program: str, plan_type_id: int = 2) -> dict[str, Any]:
+        program_id = self.obs_public.resolve_equivalence_program(program)["program_id"]
+        return {"plans": self.obs_public.equivalence_plans(program_id, plan_type_id)}
+
+    def obs_public_get_equivalences(
+        self, program: str, plan_id: int, branch: str, plan_type_id: int = 2
+    ) -> dict[str, Any]:
+        program_id = self.obs_public.resolve_equivalence_program(program)["program_id"]
+        return self.obs_public.get_equivalences(
+            program_id=program_id, plan_type_id=plan_type_id, plan_id=plan_id, branch=branch
+        )
+
+    def obs_public_check_conflicts(
+        self, selections: list[dict[str, Any]], level: str = "LS"
+    ) -> dict[str, Any]:
+        return self.obs_public.check_conflicts(selections, level=level)
+
+    # ------------------------------------------------------------ hocametre
+
+    def hocametre_search_instructors(self, query: str, limit: int = 10) -> dict[str, Any]:
+        return {"query": query, "instructors": self.notkutusu.search_instructors(query, limit=limit)}
+
+    def hocametre_get_instructor(
+        self, slug: str, include_comments: bool = True, comment_limit: int = 10
+    ) -> dict[str, Any]:
+        return self.notkutusu.get_instructor(
+            slug, include_comments=include_comments, comment_limit=comment_limit
+        )
+
+    def hocametre_lookup_instructors(
+        self,
+        names: list[str],
+        include_comments: bool = False,
+        comment_limit: int = 5,
+    ) -> dict[str, Any]:
+        return self.notkutusu.lookup(
+            names, include_comments=include_comments, comment_limit=comment_limit
+        )
+
+    def hocametre_rate_course_sections(
+        self,
+        codes: list[str],
+        level: str = "LS",
+        only_available: bool = False,
+        include_comments: bool = False,
+        comment_limit: int = 3,
+    ) -> dict[str, Any]:
+        """Every published section of the given courses, with its instructor's ratings."""
+        offered = self.obs_public.find_courses(codes, level=level, only_available=only_available)
+        names: list[str] = []
+        for sections in offered["found"].values():
+            for section in sections:
+                for name in split_instructor_field(section.get("instructor")):
+                    if name not in names:
+                        names.append(name)
+        ratings = self.notkutusu.lookup(
+            names, include_comments=include_comments, comment_limit=comment_limit
+        )
+        by_name = {entry["query"]: entry for entry in ratings["instructors"]}
+        courses: list[dict[str, Any]] = []
+        for code, sections in offered["found"].items():
+            rows = []
+            for section in sections:
+                instructors = [
+                    {
+                        "name": name,
+                        "combined": (by_name.get(name) or {}).get("combined"),
+                        "profiles": (by_name.get(name) or {}).get("profiles", []),
+                    }
+                    for name in split_instructor_field(section.get("instructor"))
+                ]
+                rows.append({**section, "instructor_ratings": instructors})
+            courses.append({"code": code, "name": sections[0].get("name") if sections else None, "sections": rows})
+        return {
+            "term": offered.get("term"),
+            "term_code": offered.get("term_code"),
+            "courses": courses,
+            "not_offered": offered.get("not_offered", []),
+            "criteria": ratings["criteria"],
+            "note": ratings["note"],
+        }
+
+
 TOOLS: list[dict[str, Any]] = [
     {
         "name": "auth_status",
@@ -1482,11 +1772,493 @@ TOOLS: list[dict[str, Any]] = [
             "additionalProperties": False,
         },
     },
+    {'name': 'obs_auth_status',
+     'title': 'OBS Authentication Status',
+     'description': 'Check whether the ITU account can sign in to OBS (obs.itu.edu.tr) via girisv3 '
+                    'single sign-on.',
+     'inputSchema': {'type': 'object', 'properties': {}, 'additionalProperties': False}},
+    {'name': 'obs_refresh_session',
+     'title': 'Refresh OBS Session',
+     'description': 'Force a new OBS login and issue a fresh API token.',
+     'inputSchema': {'type': 'object', 'properties': {}, 'additionalProperties': False}},
+    {'name': 'obs_get_profile',
+     'title': 'Get OBS Profile',
+     'description': "Return the student's personal details, student number, faculty, department, "
+                    'advisors, and academic programs.',
+     'inputSchema': {'type': 'object', 'properties': {}, 'additionalProperties': False}},
+    {'name': 'obs_list_semesters',
+     'title': 'List OBS Semesters',
+     'description': 'List every academic semester available for this student, with the internal '
+                    'semester id and term code.',
+     'inputSchema': {'type': 'object', 'properties': {}, 'additionalProperties': False}},
+    {'name': 'obs_get_graduation_progress',
+     'title': 'Graduation Progress',
+     'description': "Return 'Mezuniyetime Ne Kaldı': the course plan requirements, credits earned vs. "
+                    'required, GPA and internship requirements, every completed course, and every '
+                    'course still missing.',
+     'inputSchema': {'type': 'object',
+                     'properties': {'program': {'type': 'string',
+                                                'description': 'Optional program id or name fragment. '
+                                                               'Defaults to the primary program.'},
+                                    'include_courses': {'type': 'boolean',
+                                                        'default': True,
+                                                        'description': 'Include the '
+                                                                       'completed/remaining course '
+                                                                       'lists, not just the summary.'},
+                                    'include_raw': {'type': 'boolean',
+                                                    'default': False,
+                                                    'description': 'Also include the untouched OBS '
+                                                                   'payload.'}},
+                     'additionalProperties': False}},
+    {'name': 'obs_get_academic_standing',
+     'title': 'Academic Standing',
+     'description': 'Return the semester-by-semester GPA, semester GPA, credit, and class-level '
+                    'history.',
+     'inputSchema': {'type': 'object', 'properties': {}, 'additionalProperties': False}},
+    {'name': 'obs_get_semester_status',
+     'title': 'Semester Academic Status',
+     'description': 'Return the academic status snapshot (class level, credits, GPA) for one semester.',
+     'inputSchema': {'type': 'object',
+                     'properties': {'semester': {'type': 'string',
+                                                 'description': 'Semester id, term code such as '
+                                                                '202620, or a name fragment. Defaults '
+                                                                'to the current semester.'}},
+                     'additionalProperties': False}},
+    {'name': 'obs_get_grades',
+     'title': 'Get Semester Grades',
+     'description': 'Return the final letter grades for one semester, with grade points and pass/fail '
+                    'flags.',
+     'inputSchema': {'type': 'object',
+                     'properties': {'semester': {'type': 'string',
+                                                 'description': 'Semester id, term code such as '
+                                                                '202620, or a name fragment. Defaults '
+                                                                'to the current semester.'}},
+                     'additionalProperties': False}},
+    {'name': 'obs_get_interim_grades',
+     'title': 'Get In-Term Grades',
+     'description': "Return published in-term grades (midterm, quizzes, final) for a semester's "
+                    "courses, each with the class mean, standard deviation, the student's rank, and "
+                    'the component weight — enough to estimate a letter grade before it is posted.',
+     'inputSchema': {'type': 'object',
+                     'properties': {'semester': {'type': 'string',
+                                                 'description': 'Semester id, term code, or name '
+                                                                'fragment. Defaults to the current '
+                                                                'semester.'},
+                                    'course': {'type': 'string',
+                                               'description': 'Optional course code or name fragment '
+                                                              'to limit the result to one course.'}},
+                     'additionalProperties': False}},
+    {'name': 'obs_get_course_history',
+     'title': 'Full Course History',
+     'description': 'Return every graded course across every semester, plus pass/fail counts and the '
+                    'list of failed courses.',
+     'inputSchema': {'type': 'object',
+                     'properties': {'include_empty': {'type': 'boolean',
+                                                      'default': False,
+                                                      'description': 'Include semesters that have no '
+                                                                     'graded courses.'}},
+                     'additionalProperties': False}},
+    {'name': 'obs_get_registered_courses',
+     'title': 'Get Registered Courses',
+     'description': 'Return the courses the student is registered to for one semester, with CRN, '
+                    'place, and time.',
+     'inputSchema': {'type': 'object',
+                     'properties': {'semester': {'type': 'string',
+                                                 'description': 'Semester id, term code, or name '
+                                                                'fragment. Defaults to the current '
+                                                                'semester.'}},
+                     'additionalProperties': False}},
+    {'name': 'obs_get_schedule',
+     'title': 'Get Weekly Schedule',
+     'description': 'Return the weekly class schedule for one semester, sorted by day and start time.',
+     'inputSchema': {'type': 'object',
+                     'properties': {'semester': {'type': 'string',
+                                                 'description': 'Semester id, term code, or name '
+                                                                'fragment. Defaults to the current '
+                                                                'semester.'}},
+                     'additionalProperties': False}},
+    {'name': 'obs_get_exam_schedule',
+     'title': 'Get Final Exam Schedule',
+     'description': 'Return the final exam dates, times, and rooms for one semester.',
+     'inputSchema': {'type': 'object',
+                     'properties': {'semester': {'type': 'string',
+                                                 'description': 'Semester id, term code, or name '
+                                                                'fragment. Defaults to the current '
+                                                                'semester.'}},
+                     'additionalProperties': False}},
+    {'name': 'obs_get_attendance',
+     'title': 'Get Course Attendance',
+     'description': 'Return the attendance record for one registered class, identified by its OBS '
+                    'class id.',
+     'inputSchema': {'type': 'object',
+                     'properties': {'class_id': {'type': 'integer',
+                                                 'description': 'OBS class id (the class_id field from '
+                                                                'obs_get_registered_courses).'}},
+                     'required': ['class_id'],
+                     'additionalProperties': False}},
+    {'name': 'obs_get_registration_status',
+     'title': 'Course Registration Status',
+     'description': 'Return whether course registration is currently open for the student, per '
+                    'semester.',
+     'inputSchema': {'type': 'object', 'properties': {}, 'additionalProperties': False}},
+    {'name': 'obs_get_internships',
+     'title': 'Get Internship Records',
+     'description': "Return the student's recorded internships.",
+     'inputSchema': {'type': 'object', 'properties': {}, 'additionalProperties': False}},
+    {'name': 'obs_get_announcements',
+     'title': 'Get OBS Announcements',
+     'description': 'Return announcements published in OBS.',
+     'inputSchema': {'type': 'object',
+                     'properties': {'limit': {'type': 'integer',
+                                              'minimum': 1,
+                                              'maximum': 100,
+                                              'default': 20},
+                                    'page': {'type': 'integer', 'minimum': 1, 'default': 1}},
+                     'additionalProperties': False}},
+    {'name': 'obs_get_transcript',
+     'title': 'Download Transcript',
+     'description': 'Download the official transcript preview PDF from OBS and save it to disk.',
+     'inputSchema': {'type': 'object',
+                     'properties': {'language': {'type': 'string',
+                                                 'enum': ['tr', 'en'],
+                                                 'default': 'tr',
+                                                 'description': 'Transcript language.'},
+                                    'output_dir': {'type': 'string',
+                                                   'description': 'Directory to save the PDF into. '
+                                                                  'Defaults to ./downloads.'},
+                                    'filename': {'type': 'string',
+                                                 'description': 'Optional output file name.'}},
+                     'additionalProperties': False}},
+    {'name': 'obs_check_prerequisites',
+     'title': 'Check Course Prerequisites',
+     'description': "Decide which courses the student may register for, by evaluating each course's "
+                    'published prerequisite expression against their own passed courses, expanded '
+                    'through the course-plan equivalences that cover renamed course codes. '
+                    "Prerequisites reflect the programme's current definitions even for an older plan. "
+                    'Defaults to every course still required for graduation.',
+     'inputSchema': {'type': 'object',
+                     'properties': {'codes': {'type': 'array',
+                                              'items': {'type': 'string'},
+                                              'description': 'Course codes to check. Omit to check '
+                                                             'every remaining plan course.'},
+                                    'program': {'type': 'string',
+                                                'description': 'Optional programme id or name fragment '
+                                                               'for the equivalence lookup.'},
+                                    'assume_passed': {'type': 'array',
+                                                      'items': {'type': 'string'},
+                                                      'description': 'Courses to treat as passed even '
+                                                                     'though OBS has not posted them '
+                                                                     "yet, e.g. ['YZV 201E'] or ['YZV "
+                                                                     "201E:BB']. Defaults to a DD."}},
+                     'additionalProperties': False}},
+    {'name': 'obs_get_registration_options',
+     'title': 'Registration Options',
+     'description': 'For every course still required for graduation: which codes satisfy it (including '
+                    'renamed equivalents), whether any of them is offered this term with CRNs and '
+                    'meeting times, and whether the prerequisites are met. The single call to drive '
+                    'course-registration planning.',
+     'inputSchema': {'type': 'object',
+                     'properties': {'level': {'type': 'string',
+                                              'enum': ['OL', 'LS', 'LU', 'LUI'],
+                                              'default': 'LS'},
+                                    'only_eligible': {'type': 'boolean',
+                                                      'default': False,
+                                                      'description': 'Only return courses that are '
+                                                                     'both offered and '
+                                                                     'prerequisite-clear.'},
+                                    'assume_passed': {'type': 'array',
+                                                      'items': {'type': 'string'},
+                                                      'description': 'Courses to treat as passed even '
+                                                                     'though OBS has not posted them '
+                                                                     "yet, e.g. ['YZV 201E'] or ['YZV "
+                                                                     "201E:BB']. Defaults to a DD."},
+                                    'program_code': {'type': 'string',
+                                                     'description': 'Programme code such as YZVE_LS. '
+                                                                    'Filters out sections restricted '
+                                                                    'to other programmes.'}},
+                     'additionalProperties': False}},
+    {'name': 'obs_project_gpa',
+     'title': 'Project GPA',
+     'description': 'Project the cumulative GPA under hypothetical grades, e.g. ["YZV 201E:CC", "ING '
+                    '201A:BB"]. Models ITU\'s rule that only the last attempt of a course counts and '
+                    'that equivalent course codes are the same course. Reports whether the '
+                    'reconstruction still matches the GPA OBS itself reports, so a silent model drift '
+                    'is visible.',
+     'inputSchema': {'type': 'object',
+                     'properties': {'assume_grades': {'type': 'array',
+                                                      'items': {'type': 'string'},
+                                                      'description': 'Entries of the form '
+                                                                     "'COURSE:GRADE', e.g. 'YZV "
+                                                                     "201E:CC'. Omit to just report "
+                                                                     'the current basis.'}},
+                     'additionalProperties': False}},
+    {'name': 'obs_get_elective_pool',
+     'title': 'Elective Pool',
+     'description': "Return every course that can fill one elective slot of the student's course plan, "
+                    'by group id.',
+     'inputSchema': {'type': 'object',
+                     'properties': {'group_id': {'type': 'integer',
+                                                 'description': 'Elective group id, from '
+                                                                'obs_get_registration_options '
+                                                                'elective_slots.'}},
+                     'required': ['group_id'],
+                     'additionalProperties': False}},
+    {'name': 'obs_get_elective_options',
+     'title': 'Elective Options This Term',
+     'description': 'For every elective slot the student has not yet filled: the pool of eligible '
+                    'courses, which of them run this term with CRNs and times, and whether the '
+                    'prerequisites are met.',
+     'inputSchema': {'type': 'object',
+                     'properties': {'level': {'type': 'string',
+                                              'enum': ['OL', 'LS', 'LU', 'LUI'],
+                                              'default': 'LS'},
+                                    'only_offered': {'type': 'boolean',
+                                                     'default': True,
+                                                     'description': 'Only list pool courses that are '
+                                                                    'actually offered this term.'},
+                                    'check_prerequisites': {'type': 'boolean',
+                                                            'default': True,
+                                                            'description': 'Also evaluate '
+                                                                           'prerequisites for the '
+                                                                           'offered pool courses.'},
+                                    'assume_passed': {'type': 'array',
+                                                      'items': {'type': 'string'},
+                                                      'description': 'Courses to treat as passed even '
+                                                                     'though OBS has not posted them '
+                                                                     'yet.'},
+                                    'program_code': {'type': 'string',
+                                                     'description': 'Programme code such as YZVE_LS. '
+                                                                    'Filters out sections restricted '
+                                                                    'to other programmes.'}},
+                     'additionalProperties': False}},
+    {'name': 'obs_api_get',
+     'title': 'Read OBS API Endpoint',
+     'description': 'Read any /api/ogrenci/... OBS endpoint directly and return the raw JSON. '
+                    'Read-only escape hatch.',
+     'inputSchema': {'type': 'object',
+                     'properties': {'path': {'type': 'string',
+                                             'description': 'Endpoint path, for example '
+                                                            '/api/ogrenci/KayitDurumu.'}},
+                     'required': ['path'],
+                     'additionalProperties': False}},
+    {'name': 'obs_public_active_term',
+     'title': 'Public Active Term',
+     'description': 'Return the term whose course schedule is currently published on the public OBS '
+                    'pages, with its term code. This is usually the upcoming term, not the one '
+                    'registration still calls current. No login required.',
+     'inputSchema': {'type': 'object',
+                     'properties': {'level': {'type': 'string',
+                                              'enum': ['OL', 'LS', 'LU', 'LUI'],
+                                              'default': 'LS',
+                                              'description': 'Program level: OL=associate, '
+                                                             'LS=undergraduate, LU=graduate, '
+                                                             'LUI=graduate evening.'}},
+                     'additionalProperties': False}},
+    {'name': 'obs_public_get_prerequisites',
+     'title': 'Public Course Prerequisites',
+     'description': 'Return the published prerequisite expression and minimum completed credits for '
+                    "every course in a branch. These reflect the programme's current definitions, not "
+                    'any one course plan. No login required.',
+     'inputSchema': {'type': 'object',
+                     'properties': {'branch': {'type': 'string',
+                                               'description': 'Course branch code such as YZV or '
+                                                              'BLG.'}},
+                     'required': ['branch'],
+                     'additionalProperties': False}},
+    {'name': 'obs_public_get_equivalences',
+     'title': 'Public Course Equivalences',
+     'description': 'Return which courses count in place of a plan course, for one course plan and '
+                    'branch. This is how renamed course codes are reconciled across cohorts. No login '
+                    'required.',
+     'inputSchema': {'type': 'object',
+                     'properties': {'program': {'type': 'string',
+                                                'description': 'Programme id or name fragment, e.g. '
+                                                               "'Yapay Zeka'."},
+                                    'plan_id': {'type': 'integer',
+                                                'description': 'Course plan id, as reported by '
+                                                               'obs_get_graduation_progress.'},
+                                    'branch': {'type': 'string',
+                                               'description': 'Course branch code such as YZV.'},
+                                    'plan_type_id': {'type': 'integer',
+                                                     'default': 2,
+                                                     'description': '2 = Lisans, 3 = ÇAP.'}},
+                     'required': ['program', 'plan_id', 'branch'],
+                     'additionalProperties': False}},
+    {'name': 'obs_public_list_plans',
+     'title': 'List Course Plans',
+     'description': 'List the course plans published for a programme, with their plan ids. No login '
+                    'required.',
+     'inputSchema': {'type': 'object',
+                     'properties': {'program': {'type': 'string',
+                                                'description': 'Programme id or name fragment.'},
+                                    'plan_type_id': {'type': 'integer', 'default': 2}},
+                     'required': ['program'],
+                     'additionalProperties': False}},
+    {'name': 'obs_public_registration_term',
+     'title': 'Public Registration Term',
+     'description': 'Return the term the registration system reports as current, which lags the '
+                    'published schedule. No login required.',
+     'inputSchema': {'type': 'object',
+                     'properties': {'level': {'type': 'string',
+                                              'enum': ['OL', 'LS', 'LU', 'LUI'],
+                                              'default': 'LS'}},
+                     'additionalProperties': False}},
+    {'name': 'obs_public_list_branches',
+     'title': 'List Course Branch Codes',
+     'description': 'List every course branch code (BLG, YZV, MAT, ...) published for a program level. '
+                    'No login required.',
+     'inputSchema': {'type': 'object',
+                     'properties': {'level': {'type': 'string',
+                                              'enum': ['OL', 'LS', 'LU', 'LUI'],
+                                              'default': 'LS'}},
+                     'additionalProperties': False}},
+    {'name': 'obs_public_get_schedule',
+     'title': 'Public Course Schedule',
+     'description': 'Return every published section for a course branch: CRN, meeting days and times, '
+                    'instructor, room, quota, and remaining seats. No login required.',
+     'inputSchema': {'type': 'object',
+                     'properties': {'branch': {'type': 'string',
+                                               'description': 'Course branch code such as YZV or BLG, '
+                                                              'or its numeric branch id.'},
+                                    'level': {'type': 'string',
+                                              'enum': ['OL', 'LS', 'LU', 'LUI'],
+                                              'default': 'LS'},
+                                    'course_code': {'type': 'string',
+                                                    'description': 'Optional exact course code filter, '
+                                                                   "for example 'YZV 302E'."},
+                                    'day': {'type': 'string',
+                                            'description': 'Optional day filter, Turkish or English '
+                                                           '(e.g. Salı or Tuesday).'},
+                                    'instructor': {'type': 'string',
+                                                   'description': 'Optional instructor name fragment.'},
+                                    'only_available': {'type': 'boolean',
+                                                       'default': False,
+                                                       'description': 'Only return sections that still '
+                                                                      'have free seats.'}},
+                     'required': ['branch'],
+                     'additionalProperties': False}},
+    {'name': 'obs_public_find_courses',
+     'title': 'Find Public Course Sections',
+     'description': 'Look up several courses at once by code and return their published sections. No '
+                    'login required.',
+     'inputSchema': {'type': 'object',
+                     'properties': {'codes': {'type': 'array',
+                                              'items': {'type': 'string'},
+                                              'description': "Course codes such as ['YZV 302E', 'BLG "
+                                                             "223E']."},
+                                    'level': {'type': 'string',
+                                              'enum': ['OL', 'LS', 'LU', 'LUI'],
+                                              'default': 'LS'},
+                                    'only_available': {'type': 'boolean', 'default': False}},
+                     'required': ['codes'],
+                     'additionalProperties': False}},
+    {'name': 'obs_public_check_conflicts',
+     'title': 'Check Schedule Conflicts',
+     'description': 'Check a candidate set of sections for time clashes and return the resulting '
+                    'weekly timetable. Each selection is {code, crn}; the CRN can be omitted when a '
+                    'course has only one section.',
+     'inputSchema': {'type': 'object',
+                     'properties': {'selections': {'type': 'array',
+                                                   'items': {'type': 'object',
+                                                             'properties': {'code': {'type': 'string'},
+                                                                            'crn': {'type': 'string'}},
+                                                             'required': ['code'],
+                                                             'additionalProperties': False}},
+                                    'level': {'type': 'string',
+                                              'enum': ['OL', 'LS', 'LU', 'LUI'],
+                                              'default': 'LS'}},
+                     'required': ['selections'],
+                     'additionalProperties': False}},
+    {'name': 'hocametre_search_instructors',
+     'title': 'Search Hocametre Instructors',
+     'description': "Search notkutusu.com's public 'hocametre' instructor ratings by (partial) "
+                    'instructor name and return matching profiles with their slugs. No login required; '
+                    'the same person may appear as several duplicate profiles.',
+     'inputSchema': {'type': 'object',
+                     'properties': {'query': {'type': 'string',
+                                              'description': 'Instructor name or part of it, e.g. '
+                                                             "'Ovatman'."},
+                                    'limit': {'type': 'integer',
+                                              'minimum': 1,
+                                              'maximum': 50,
+                                              'default': 10}},
+                     'required': ['query'],
+                     'additionalProperties': False}},
+    {'name': 'hocametre_get_instructor',
+     'title': 'Get Hocametre Instructor Ratings',
+     'description': "Return one instructor profile's anonymous student ratings (note sharing, "
+                    'helpfulness, homework load, attendance strictness, teaching skills; each 1-5 with '
+                    'vote counts) and, optionally, the newest student comments. No login required.',
+     'inputSchema': {'type': 'object',
+                     'properties': {'slug': {'type': 'string',
+                                             'description': 'Profile slug from '
+                                                            'hocametre_search_instructors.'},
+                                    'include_comments': {'type': 'boolean', 'default': True},
+                                    'comment_limit': {'type': 'integer',
+                                                      'minimum': 1,
+                                                      'maximum': 100,
+                                                      'default': 10}},
+                     'required': ['slug'],
+                     'additionalProperties': False}},
+    {'name': 'hocametre_lookup_instructors',
+     'title': 'Look Up Instructor Ratings',
+     'description': 'Resolve several instructor names (as printed in the OBS schedule) to their '
+                    'hocametre ratings. Returns every matching profile, most-voted first, plus a '
+                    "vote-weighted 'combined' score because the same instructor is often split across "
+                    'duplicate profiles. No login required.',
+     'inputSchema': {'type': 'object',
+                     'properties': {'names': {'type': 'array',
+                                              'items': {'type': 'string'},
+                                              'minItems': 1,
+                                              'description': 'Instructor names, academic titles '
+                                                             'optional.'},
+                                    'include_comments': {'type': 'boolean', 'default': False},
+                                    'comment_limit': {'type': 'integer',
+                                                      'minimum': 1,
+                                                      'maximum': 50,
+                                                      'default': 5}},
+                     'required': ['names'],
+                     'additionalProperties': False}},
+    {'name': 'hocametre_rate_course_sections',
+     'title': 'Rate Course Sections by Instructor',
+     'description': 'For each given course code, list every section published in the public OBS '
+                    'schedule for the upcoming term (CRN, times, room, quota, remaining seats) '
+                    "together with its instructor's hocametre ratings, so sections of the same course "
+                    'can be compared by instructor. No login required.',
+     'inputSchema': {'type': 'object',
+                     'properties': {'codes': {'type': 'array',
+                                              'items': {'type': 'string'},
+                                              'minItems': 1,
+                                              'description': "Course codes, e.g. ['BBF 302E', 'BBF "
+                                                             "301E']."},
+                                    'level': {'type': 'string',
+                                              'default': 'LS',
+                                              'description': 'Program level: LS (undergraduate), OL '
+                                                             '(associate), LU (graduate).'},
+                                    'only_available': {'type': 'boolean',
+                                                       'default': False,
+                                                       'description': 'Only sections with remaining '
+                                                                      'seats.'},
+                                    'include_comments': {'type': 'boolean', 'default': False},
+                                    'comment_limit': {'type': 'integer',
+                                                      'minimum': 1,
+                                                      'maximum': 20,
+                                                      'default': 3}},
+                     'required': ['codes'],
+                     'additionalProperties': False}},
 ]
 
 
 LOCAL_TOOL_NAMES: list[str] = [tool["name"] for tool in TOOLS]
-REMOTE_EXCLUDED_TOOLS = {"download_resource", "snapshot_page", "diff_snapshot"}
+# Tools that write to the server's own disk or expose a raw API escape hatch
+# make no sense (or are unsafe) on a shared remote HTTP deployment.
+REMOTE_EXCLUDED_TOOLS = {
+    "download_resource",
+    "snapshot_page",
+    "diff_snapshot",
+    "obs_get_transcript",
+    "obs_api_get",
+}
 REMOTE_TOOL_NAMES: list[str] = [
     name for name in LOCAL_TOOL_NAMES if name not in REMOTE_EXCLUDED_TOOLS
 ]

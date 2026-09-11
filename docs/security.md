@@ -1,6 +1,10 @@
 # Security Notes
 
-This project logs in to ITU Ninova with the username and password supplied by the user.
+This project logs in to ITU Ninova and ITU OBS with the username and password supplied by the user. Both sit behind İTÜ's own `girisv3.itu.edu.tr` single sign-on, and that is the only place the password is ever sent.
+
+All OBS access is read-only. The course-registration, draft, contact-edit, and graduation-ceremony endpoints of OBS are deliberately not exposed, so the server cannot register or drop a course or change anything in the student record.
+
+The instructor ratings ("hocametre") are read from notkutusu.com's public API, which requires no login. No notkutusu account is used, and no credential or personal data is sent to notkutusu. Note that notkutusu has its own, separate account system: never reuse your İTÜ password there.
 
 ## Do
 
